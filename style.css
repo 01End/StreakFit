@@ -413,3 +413,220 @@ label input, label select { color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
+
+/* ============================================================================
+   EXTRAS — motivation, goal, water cups, badges, plans, demos, scanner, confetti
+   ============================================================================ */
+
+/* ---- dashboard extras ---- */
+.motivation { text-align: center; color: var(--muted); font-style: italic; margin: 2px 0 14px; font-size: 0.92rem; }
+.hero-pill {
+  display: inline-block; margin-top: 12px; padding: 7px 16px; border-radius: 999px;
+  font-family: var(--font-display); font-weight: 700; font-size: 0.95rem;
+}
+.hero-pill.ok { background: rgba(92, 224, 143, 0.14); color: var(--good); border: 1px solid rgba(92, 224, 143, 0.3); }
+.hero-pill.bad { background: rgba(255, 93, 108, 0.14); color: var(--danger); border: 1px solid rgba(255, 93, 108, 0.3); }
+
+.badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: -2px 0 16px; }
+.badge {
+  font-size: 1.35rem; width: 44px; height: 44px; display: grid; place-items: center;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 50%;
+  box-shadow: 0 0 16px -4px rgba(198, 241, 53, 0.45); animation: pop 0.4s var(--ease) both;
+}
+
+.goal-card .goal-big { font-family: var(--font-display); font-weight: 800; font-size: 2rem; letter-spacing: -0.02em; }
+.goal-card .goal-line { margin: 4px 0 8px; }
+.muted-card .btn-ghost { margin-top: 8px; }
+
+.water-amount { font-family: var(--font-display); font-weight: 600; color: var(--water); font-size: 0.9rem; }
+.cups { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+.cup {
+  width: 38px; height: 42px; background: rgba(0, 0, 0, 0.28); border: 1px solid var(--border);
+  border-radius: 7px 7px 13px 13px; font-size: 1rem; filter: grayscale(1) opacity(0.4);
+  transition: transform 0.25s var(--ease), filter 0.25s, border-color 0.25s, background 0.25s, box-shadow 0.25s;
+}
+.cup.filled {
+  filter: none; border-color: rgba(69, 214, 240, 0.5);
+  background: linear-gradient(160deg, rgba(69, 214, 240, 0.25), rgba(69, 214, 240, 0.05));
+  box-shadow: 0 0 12px -2px rgba(69, 214, 240, 0.45);
+}
+.cup:active { transform: scale(0.85); }
+.cup.pop { animation: pop 0.32s var(--ease); }
+
+/* ---- workouts: plan + day picker ---- */
+.day-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
+.day-btn {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 12px;
+  border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); font-family: var(--font-display); font-weight: 700; font-size: 0.92rem;
+  transition: border-color 0.18s, background 0.18s, transform 0.15s var(--ease);
+}
+.day-btn span { font-family: var(--font-body); font-weight: 400; font-size: 0.7rem; color: var(--muted); }
+.day-btn:hover { border-color: var(--lime); background: var(--surface-2); }
+.day-btn:active { transform: scale(0.97); }
+.paste-card summary { cursor: pointer; list-style: none; }
+.paste-card summary::-webkit-details-marker { display: none; }
+.paste-card[open] summary { margin-bottom: 10px; }
+
+/* checklist (with demo button + meta outside label) */
+.check-item { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.check-item:last-child { border-bottom: none; }
+.check-item label { flex: 1; display: flex; align-items: center; gap: 12px; padding: 13px 2px; margin: 0; cursor: pointer; font-weight: 500; }
+.demo-btn {
+  width: 34px; height: 34px; border-radius: 10px; background: var(--surface-2);
+  border: 1px solid var(--border); color: var(--lime); font-size: 0.72rem; flex: 0 0 auto;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.demo-btn:hover { border-color: var(--lime); }
+.demo-btn:active { transform: scale(0.85); }
+.all-done { color: var(--good); font-weight: 600; text-align: center; margin: 14px 0 0; animation: rise-in 0.4s var(--ease) both; }
+
+/* log extras */
+.log-name { flex: 1; display: flex; flex-direction: column; }
+.log-name em { color: var(--ember); font-style: normal; font-weight: 600; }
+.log-serving { margin-top: 1px; }
+.flash-card { animation: flash-glow 1.2s ease; }
+@keyframes flash-glow {
+  0%, 100% { box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 18px 40px -28px rgba(0,0,0,0.9); }
+  30% { box-shadow: 0 0 0 2px var(--lime), 0 0 34px rgba(198, 241, 53, 0.45); }
+}
+
+/* ---- modals (exercise demo + scanner) ---- */
+#ex-modal, #scan-modal {
+  position: fixed; inset: 0; z-index: 150; display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(4, 5, 8, 0.72); backdrop-filter: blur(8px);
+  opacity: 0; transition: opacity 0.25s;
+}
+#ex-modal.open, #scan-modal.open { opacity: 1; }
+.ex-modal-card, .scan-card {
+  position: relative; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+  background: linear-gradient(165deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--border-strong); border-radius: 24px; padding: 22px;
+  backdrop-filter: blur(20px); box-shadow: 0 30px 70px -20px #000; animation: rise-in 0.35s var(--ease) both;
+}
+.ex-close {
+  position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border); z-index: 2;
+}
+.ex-title { font-family: var(--font-display); font-size: 1.3rem; margin: 0 34px 4px 0; }
+.ex-demo { background: radial-gradient(circle at 50% 42%, rgba(198, 241, 53, 0.08), transparent 70%); border-radius: 18px; margin: 4px 0 6px; }
+.ex-meta-row { font-family: var(--font-display); color: var(--ember); font-weight: 600; margin-bottom: 10px; min-height: 1em; }
+.ex-cues { margin: 0 0 16px; padding-left: 18px; display: grid; gap: 7px; }
+.ex-cues li { font-size: 0.92rem; }
+.rest-timer { border-top: 1px solid var(--border); padding-top: 14px; }
+.rest-display { font-family: var(--font-display); font-weight: 800; font-size: 2.6rem; text-align: center; color: var(--text); transition: color 0.2s; }
+.rest-display.running { color: var(--cyan); }
+.rest-display.done { color: var(--lime); animation: pop 0.4s var(--ease); }
+.reader { width: 100%; border-radius: 14px; overflow: hidden; background: #000; min-height: 220px; margin: 8px 0; }
+
+/* ---- celebration confetti ---- */
+.celebrate { position: fixed; inset: 0; z-index: 200; pointer-events: none; overflow: hidden; }
+.celebrate i { position: absolute; top: -14px; width: 9px; height: 15px; border-radius: 2px; animation-name: confetti; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes confetti { to { transform: translateY(110vh) rotate(720deg); opacity: 0.85; } }
+.celebrate-msg {
+  position: absolute; top: 30%; left: 50%; transform: translateX(-50%);
+  font-family: var(--font-display); font-weight: 800; font-size: 1.7rem; color: var(--lime);
+  text-shadow: 0 4px 34px rgba(198, 241, 53, 0.55); white-space: nowrap; animation: pop-msg 0.5s var(--ease) both;
+}
+@keyframes pop-msg { from { opacity: 0; transform: translateX(-50%) scale(0.6); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+
+/* ============================================================================
+   ANIMATED EXERCISE FIGURE
+   ============================================================================ */
+.ex-fig { width: 100%; max-width: 240px; height: 220px; display: block; margin: 0 auto; overflow: visible; }
+.ex-fig .seg, .ex-fig .head { fill: var(--lime); }
+.ex-fig .foot { fill: var(--ember); }
+.ex-fig .bone { stroke: var(--lime); stroke-width: 6; stroke-linecap: round; fill: none; }
+.ex-fig .foot-bone { stroke: var(--ember); stroke-width: 6; }
+.ex-fig .ex-ground { stroke: rgba(255, 255, 255, 0.15); stroke-width: 2; stroke-linecap: round; }
+.ex-fig .ex-bar { stroke: rgba(255, 255, 255, 0.3); stroke-width: 4; stroke-linecap: round; opacity: 0; }
+.anim-pullup .ex-bar { opacity: 1; }
+
+/* joint pivots */
+.ex-fig .thigh, .ex-fig .shin, .ex-fig .uarm, .ex-fig .farm,
+.ex-fig .armL, .ex-fig .armR, .ex-fig .legL, .ex-fig .legR { transform-box: fill-box; transform-origin: center top; }
+.ex-fig .torso { transform-box: fill-box; transform-origin: center bottom; }
+.ex-fig .fig, .ex-fig .phbody, .ex-fig .jfig, .ex-fig .kfig { transform-box: fill-box; transform-origin: center bottom; }
+
+/* SQUAT */
+.anim-squat .fig { animation: sq-fig 1.6s ease-in-out infinite; }
+.anim-squat .thigh { animation: sq-thigh 1.6s ease-in-out infinite; }
+.anim-squat .shin { animation: sq-shin 1.6s ease-in-out infinite; }
+.anim-squat .torso { animation: sq-torso 1.6s ease-in-out infinite; }
+@keyframes sq-fig { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(16px); } }
+@keyframes sq-thigh { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(34deg); } }
+@keyframes sq-shin { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-40deg); } }
+@keyframes sq-torso { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(8deg); } }
+
+/* BURPEE (squat → jump) */
+.anim-burpee .fig { animation: bu-fig 1.5s ease-in-out infinite; }
+.anim-burpee .thigh { animation: sq-thigh 1.5s ease-in-out infinite; }
+.anim-burpee .shin { animation: sq-shin 1.5s ease-in-out infinite; }
+.anim-burpee .torso { animation: sq-torso 1.5s ease-in-out infinite; }
+@keyframes bu-fig { 0% { transform: translateY(0); } 35%, 55% { transform: translateY(18px); } 72% { transform: translateY(-22px); } 100% { transform: translateY(0); } }
+
+/* HINGE (RDL) */
+.anim-hinge .torso { animation: hi-torso 1.8s ease-in-out infinite; }
+.anim-hinge .thigh { animation: hi-thigh 1.8s ease-in-out infinite; }
+.anim-hinge .uarm { animation: hi-uarm 1.8s ease-in-out infinite; }
+@keyframes hi-torso { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(72deg); } }
+@keyframes hi-thigh { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(14deg); } }
+@keyframes hi-uarm { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-62deg); } }
+
+/* PRESS (overhead) */
+.anim-press .uarm { animation: pr-uarm 1.4s ease-in-out infinite; }
+.anim-press .farm { animation: pr-farm 1.4s ease-in-out infinite; }
+@keyframes pr-uarm { 0%, 100% { transform: rotate(-118deg); } 50% { transform: rotate(-178deg); } }
+@keyframes pr-farm { 0%, 100% { transform: rotate(72deg); } 50% { transform: rotate(2deg); } }
+
+/* CURL */
+.anim-curl .farm { animation: cu-farm 1.3s ease-in-out infinite; }
+@keyframes cu-farm { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-145deg); } }
+
+/* ROW (bent over) */
+.anim-row .torso { transform: rotate(55deg); }
+.anim-row .uarm { animation: ro-uarm 1.3s ease-in-out infinite; }
+.anim-row .farm { animation: ro-farm 1.3s ease-in-out infinite; }
+@keyframes ro-uarm { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(48deg); } }
+@keyframes ro-farm { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-26deg); } }
+
+/* PULLUP */
+.anim-pullup .fig { animation: pu-fig 1.8s ease-in-out infinite; }
+.anim-pullup .uarm { transform: rotate(-180deg); }
+.anim-pullup .farm { animation: pu-farm 1.8s ease-in-out infinite; }
+@keyframes pu-fig { 0%, 100% { transform: translateY(10px); } 50% { transform: translateY(-12px); } }
+@keyframes pu-farm { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(38deg); } }
+
+/* CALF */
+.anim-calf .fig { animation: ca-fig 1s ease-in-out infinite; }
+@keyframes ca-fig { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+
+/* PUSHUP / PLANK (side horizontal) */
+.anim-pushup .phbody { animation: push 1.3s ease-in-out infinite; }
+@keyframes push { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(12px); } }
+.anim-plank .phbody { animation: plank-bob 3s ease-in-out infinite; }
+@keyframes plank-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+
+/* JUMPING JACKS (front) */
+.anim-jacks .jfig { animation: ja-fig 0.8s ease-in-out infinite; }
+.anim-jacks .armL { animation: ja-armL 0.8s ease-in-out infinite; }
+.anim-jacks .armR { animation: ja-armR 0.8s ease-in-out infinite; }
+.anim-jacks .legL { animation: ja-legL 0.8s ease-in-out infinite; }
+.anim-jacks .legR { animation: ja-legR 0.8s ease-in-out infinite; }
+@keyframes ja-fig { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes ja-armL { 0%, 100% { transform: rotate(8deg); } 50% { transform: rotate(155deg); } }
+@keyframes ja-armR { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(-155deg); } }
+@keyframes ja-legL { 0%, 100% { transform: rotate(4deg); } 50% { transform: rotate(26deg); } }
+@keyframes ja-legR { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(-26deg); } }
+
+/* HIGH KNEES (front, alternating) */
+.anim-knees .kfig { animation: kn-fig 0.36s ease-in-out infinite; }
+.anim-knees .legL { animation: kn-legL 0.72s ease-in-out infinite; }
+.anim-knees .legR { animation: kn-legR 0.72s ease-in-out infinite; }
+.anim-knees .armL { animation: kn-armL 0.72s ease-in-out infinite; }
+.anim-knees .armR { animation: kn-armR 0.72s ease-in-out infinite; }
+@keyframes kn-fig { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes kn-legL { 0%, 100% { transform: rotate(5deg); } 50% { transform: rotate(52deg); } }
+@keyframes kn-legR { 0%, 100% { transform: rotate(-52deg); } 50% { transform: rotate(-5deg); } }
+@keyframes kn-armL { 0%, 100% { transform: rotate(-28deg); } 50% { transform: rotate(22deg); } }
+@keyframes kn-armR { 0%, 100% { transform: rotate(22deg); } 50% { transform: rotate(-28deg); } }

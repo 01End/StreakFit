@@ -1,12 +1,11 @@
-/* StreakFit — Log tab: food search over FOODS + customFoods, and Quick Add.
- * Adds chosen foods to App.state.active.foods and refreshes the dashboard totals.
+/* StreakFit — Log tab: food search over FOODS + customFoods, Quick Add (with serving
+ * + quantity), barcode prefill, and today's running log.
  */
 function searchFoods(query) {
   const q = query.trim().toLowerCase();
   if (!q) return [];
   const pool = [...FOODS, ...App.state.customFoods];
   const matches = pool.filter((f) => f.name.toLowerCase().includes(q));
-  // Prefix matches rank first, then alphabetical.
   matches.sort((a, b) => {
     const ap = a.name.toLowerCase().startsWith(q) ? 0 : 1;
     const bp = b.name.toLowerCase().startsWith(q) ? 0 : 1;
@@ -15,14 +14,18 @@ function searchFoods(query) {
   return matches.slice(0, 25);
 }
 
-function addFoodToToday(food) {
+// Add `qty` servings of a food to today (macros scaled by qty).
+function addFoodToToday(food, qty = 1) {
+  qty = +qty || 1;
   App.state.active.foods.push({
     name: food.name,
-    kcal: +food.kcal || 0,
-    protein: +food.protein || 0,
-    carbs: +food.carbs || 0,
-    fats: +food.fats || 0,
-    sugar: +food.sugar || 0,
+    serving: food.serving || "1 serving",
+    qty,
+    kcal: (+food.kcal || 0) * qty,
+    protein: (+food.protein || 0) * qty,
+    carbs: (+food.carbs || 0) * qty,
+    fats: (+food.fats || 0) * qty,
+    sugar: (+food.sugar || 0) * qty,
   });
   App.save();
 }
@@ -31,6 +34,27 @@ function removeFoodFromToday(index) {
   App.state.active.foods.splice(index, 1);
   App.save();
   renderLogTab();
+}
+
+// Called by the barcode scanner to drop a looked-up product into Quick Add.
+function prefillQuickAdd(food) {
+  const set = (name, val) => {
+    const el = document.querySelector(`#quick-add [name="${name}"]`);
+    if (el) el.value = val;
+  };
+  set("name", food.name);
+  set("serving", food.serving || "per 100 g");
+  set("kcal", food.kcal);
+  set("protein", food.protein);
+  set("carbs", food.carbs);
+  set("fats", food.fats);
+  set("sugar", food.sugar);
+  const form = document.getElementById("quick-add");
+  if (form) {
+    form.closest(".card").scrollIntoView({ behavior: "smooth", block: "center" });
+    form.closest(".card").classList.add("flash-card");
+    setTimeout(() => form.closest(".card").classList.remove("flash-card"), 1200);
+  }
 }
 
 function renderLogTab() {
@@ -49,10 +73,12 @@ function renderLogTab() {
 
     <div class="card">
       <h3>➕ Quick Add</h3>
-      <p class="muted small">Type a food, or paste macros Claude estimated for you in chat. Saved for next time.</p>
+      <p class="muted small">Type a food, scan a barcode, or paste macros Claude estimated for you. Saved for next time.</p>
       <form id="quick-add">
         <label>Food Name<input name="name" required placeholder="e.g. Mom's machboos"></label>
         <div class="grid-2">
+          <label>Serving<input name="serving" placeholder="e.g. 1 plate / 100 g"></label>
+          <label>Quantity (servings)<input name="qty" type="number" step="0.25" value="1"></label>
           <label>Calories<input name="kcal" type="number" step="0.1" required></label>
           <label>Protein (g)<input name="protein" type="number" step="0.1" value="0"></label>
           <label>Carbs (g)<input name="carbs" type="number" step="0.1" value="0"></label>
@@ -71,7 +97,11 @@ function renderLogTab() {
             ? logged
                 .map(
                   (f, i) =>
-                    `<li><span>${f.name}</span><span class="muted">${Math.round(f.kcal)} kcal</span><button class="del" data-i="${i}">✕</button></li>`
+                    `<li>
+                       <span class="log-name">${f.name}${f.qty && f.qty !== 1 ? ` <em>×${f.qty}</em>` : ""}<span class="muted small log-serving">${f.serving || ""}</span></span>
+                       <span class="muted">${Math.round(f.kcal)} kcal</span>
+                       <button class="del" data-i="${i}">✕</button>
+                     </li>`
                 )
                 .join("")
             : `<li class="muted">Nothing logged yet.</li>`
@@ -104,7 +134,7 @@ function renderLogTab() {
     const name = decodeURIComponent(li.dataset.name);
     const food = [...FOODS, ...App.state.customFoods].find((f) => f.name === name);
     if (food) {
-      addFoodToToday(food);
+      addFoodToToday(food, 1);
       searchEl.value = "";
       resultsEl.innerHTML = "";
       renderLogTab();
@@ -114,21 +144,22 @@ function renderLogTab() {
   document.getElementById("quick-add").addEventListener("submit", (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const food = {
+    const perServing = {
       name: fd.get("name").trim(),
+      serving: (fd.get("serving") || "1 serving").trim(),
       kcal: +fd.get("kcal") || 0,
       protein: +fd.get("protein") || 0,
       carbs: +fd.get("carbs") || 0,
       fats: +fd.get("fats") || 0,
       sugar: +fd.get("sugar") || 0,
-      serving: "custom",
     };
-    addFoodToToday(food);
-    // Remember it for future searches if not already known.
+    const qty = +fd.get("qty") || 1;
+    addFoodToToday(perServing, qty);
+    // Remember the per-serving food for future searches if new.
     const known = [...FOODS, ...App.state.customFoods].some(
-      (f) => f.name.toLowerCase() === food.name.toLowerCase()
+      (f) => f.name.toLowerCase() === perServing.name.toLowerCase()
     );
-    if (!known) App.state.customFoods.push(food);
+    if (!known) App.state.customFoods.push(perServing);
     App.save();
     renderLogTab();
   });

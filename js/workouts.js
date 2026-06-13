@@ -1,10 +1,8 @@
-/* StreakFit — Workouts tab: import a Claude-generated JSON routine, render it as an
- * interactive checklist, and feed checked-off calories into App.state.active.exerciseBurn.
- *
- * Expected JSON shape:
- *   { "title": "Push Day",
- *     "exercises": [ { "name": "Bench Press", "sets": 4, "reps": 10, "kcal": 60 } ] }
- * If "kcal" is omitted it's estimated from a default MET and bodyweight.
+/* StreakFit — Workouts tab.
+ * Three ways to train: load a day from the built-in Aggressive Home Cut plan,
+ * paste a Claude-generated JSON routine, or keep an existing one. Each exercise
+ * has an animated demo + form cues + a rest timer. Checking items credits calories
+ * back to the dashboard's daily max.
  */
 const SAMPLE_PLAN = `{
   "title": "Push Day",
@@ -16,20 +14,39 @@ const SAMPLE_PLAN = `{
   ]
 }`;
 
-function estimateExerciseKcal(ex) {
-  // Rough fallback: MET 5 for ~6 min of work per exercise.
+function kcalForExercise(met, sets) {
   const kg = (App.state.profile && App.state.profile.weightKg) || 75;
-  const met = 5;
-  const minutes = 6;
-  return Math.round((met * 3.5 * kg) / 200 * minutes);
+  const perSet = (met * 3.5 * kg) / 200 * 1.5; // ~1.5 min of work per set
+  const n = typeof sets === "number" ? sets : 3;
+  return Math.round(perSet * n);
 }
 
 function recalcExerciseBurn() {
-  const burn = App.state.active.workout
+  App.state.active.exerciseBurn = App.state.active.workout
     .filter((e) => e.done)
     .reduce((sum, e) => sum + (+e.kcal || 0), 0);
-  App.state.active.exerciseBurn = burn;
   App.save();
+}
+
+function loadBuiltinDay(dayIndex) {
+  const day = BUILTIN_PLAN.days[dayIndex];
+  App.state.active.workout = day.exercises.map((e) => {
+    const ex = getExercise(e.key);
+    return {
+      name: ex.name,
+      sets: e.sets,
+      reps: e.reps,
+      rest: e.rest,
+      kcal: kcalForExercise(ex.met, e.sets),
+      done: false,
+      exKey: e.key,
+      anim: ex.anim,
+      cues: ex.cues,
+    };
+  });
+  App.state.active.workoutTitle = day.title;
+  recalcExerciseBurn();
+  renderWorkoutsTab();
 }
 
 function importWorkoutPlan(raw) {
@@ -42,36 +59,125 @@ function importWorkoutPlan(raw) {
   if (!data || !Array.isArray(data.exercises) || data.exercises.length === 0) {
     throw new Error('JSON must have an "exercises" array.');
   }
-  App.state.active.workout = data.exercises.map((ex) => ({
-    name: String(ex.name || "Exercise"),
-    sets: ex.sets ?? null,
-    reps: ex.reps ?? null,
-    kcal: ex.kcal != null ? +ex.kcal : estimateExerciseKcal(ex),
-    done: false,
-  }));
+  App.state.active.workout = data.exercises.map((ex) => {
+    // Try to enrich a pasted exercise with a known animation/cues by name.
+    const matchKey = Object.keys(EXERCISES).find(
+      (k) => EXERCISES[k].name.toLowerCase() === String(ex.name || "").toLowerCase()
+    );
+    const known = matchKey ? EXERCISES[matchKey] : null;
+    return {
+      name: String(ex.name || "Exercise"),
+      sets: ex.sets ?? null,
+      reps: ex.reps ?? null,
+      rest: ex.rest ?? 60,
+      kcal: ex.kcal != null ? +ex.kcal : kcalForExercise(known ? known.met : 5, ex.sets),
+      done: false,
+      exKey: matchKey || null,
+      anim: known ? known.anim : "squat",
+      cues: Array.isArray(ex.cues) ? ex.cues : known ? known.cues : [],
+    };
+  });
   App.state.active.workoutTitle = data.title || "Workout";
   recalcExerciseBurn();
 }
 
+/* ---------- animated demo + rest timer modal ---------- */
+let _restTimer = null;
+
+function openExerciseDemo(item) {
+  closeExerciseDemo();
+  const cues = (item.cues && item.cues.length ? item.cues : ["Move with control", "Full range of motion", "Breathe steadily"])
+    .map((c) => `<li>${c}</li>`)
+    .join("");
+  const rest = item.rest || 60;
+  const modal = document.createElement("div");
+  modal.id = "ex-modal";
+  modal.innerHTML = `
+    <div class="ex-modal-card">
+      <button class="ex-close" aria-label="close">✕</button>
+      <h3 class="ex-title">${item.name}</h3>
+      <div class="ex-demo">${exerciseFigure(item.anim || "squat")}</div>
+      <div class="ex-meta-row">${item.sets ? `${item.sets} sets` : ""} ${item.reps ? `· ${item.reps}` : ""}</div>
+      <ul class="ex-cues">${cues}</ul>
+      <div class="rest-timer">
+        <div class="rest-display" id="rest-display">${rest}s</div>
+        <div class="btn-row">
+          <button class="btn-primary" id="rest-start">Start ${rest}s rest</button>
+          <button class="btn-ghost" id="rest-reset">Reset</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add("open"));
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal || e.target.closest(".ex-close")) closeExerciseDemo();
+  });
+
+  const display = modal.querySelector("#rest-display");
+  let remaining = rest;
+  modal.querySelector("#rest-start").addEventListener("click", (e) => {
+    clearInterval(_restTimer);
+    remaining = rest;
+    display.textContent = `${remaining}s`;
+    display.classList.add("running");
+    _restTimer = setInterval(() => {
+      remaining--;
+      display.textContent = remaining > 0 ? `${remaining}s` : "GO! 💪";
+      if (remaining <= 0) {
+        clearInterval(_restTimer);
+        display.classList.remove("running");
+        display.classList.add("done");
+        if (navigator.vibrate) navigator.vibrate(200);
+      }
+    }, 1000);
+    e.target.textContent = "Restart";
+  });
+  modal.querySelector("#rest-reset").addEventListener("click", () => {
+    clearInterval(_restTimer);
+    remaining = rest;
+    display.textContent = `${rest}s`;
+    display.classList.remove("running", "done");
+  });
+}
+
+function closeExerciseDemo() {
+  clearInterval(_restTimer);
+  const m = document.getElementById("ex-modal");
+  if (m) m.remove();
+}
+
+/* ---------- render ---------- */
 function renderWorkoutsTab() {
   const root = document.getElementById("view-workouts");
   const w = App.state.active.workout || [];
   const title = App.state.active.workoutTitle || "Today's Workout";
   const totalBurn = App.state.active.exerciseBurn || 0;
+  const allDone = w.length > 0 && w.every((e) => e.done);
+
+  const dayBtns = BUILTIN_PLAN.days
+    .map((d, i) => `<button class="day-btn" data-day="${i}">${d.title.split(" — ")[0]}<span>${d.title.split(" — ")[1] || ""}</span></button>`)
+    .join("");
 
   root.innerHTML = `
     <h2>Workouts</h2>
 
-    <div class="card">
-      <h3>📋 Paste Claude Plan</h3>
-      <p class="muted small">Ask Claude for a routine as JSON, paste it here, and tick exercises off.</p>
-      <textarea id="plan-input" class="plan-input" rows="6" placeholder='{"title":"Push Day","exercises":[...]}'></textarea>
+    <div class="card plan-card">
+      <h3>🏋️ ${BUILTIN_PLAN.name}</h3>
+      <p class="muted small">${BUILTIN_PLAN.subtitle}</p>
+      <div class="day-grid">${dayBtns}</div>
+    </div>
+
+    <details class="card paste-card">
+      <summary><h3 style="display:inline">📋 Paste a Claude Plan</h3></summary>
+      <p class="muted small">Ask Claude for a routine as JSON, paste it here, tick exercises off.</p>
+      <textarea id="plan-input" class="plan-input" rows="5" placeholder='{"title":"Push Day","exercises":[...]}'></textarea>
       <div class="btn-row">
-        <button id="import-plan" class="btn-primary">Import Plan</button>
+        <button id="import-plan" class="btn-primary">Import</button>
         <button id="sample-plan" class="btn-ghost">Use sample</button>
       </div>
       <p id="plan-error" class="error"></p>
-    </div>
+    </details>
 
     <div class="card">
       <div class="wk-head">
@@ -88,15 +194,22 @@ function renderWorkoutsTab() {
               <label>
                 <input type="checkbox" data-i="${i}" ${e.done ? "checked" : ""}>
                 <span class="ex-name">${e.name}</span>
-                <span class="ex-meta">${e.sets ? e.sets + "×" + (e.reps ?? "") : ""} · ${e.kcal} kcal</span>
               </label>
+              <span class="ex-meta">${e.sets ? e.sets + "×" + (e.reps ?? "") : ""}</span>
+              <button class="demo-btn" data-i="${i}" aria-label="show demo">▶</button>
             </li>`
                 )
                 .join("")
-            : `<li class="muted">No plan loaded. Paste one above.</li>`
+            : `<li class="muted">Pick a day above or paste a plan to get started.</li>`
         }
       </ul>
+      ${allDone ? `<p class="all-done">✅ Workout complete — ${totalBurn} kcal credited to your day!</p>` : ""}
     </div>`;
+
+  root.querySelector(".day-grid").addEventListener("click", (e) => {
+    const btn = e.target.closest(".day-btn");
+    if (btn) loadBuiltinDay(+btn.dataset.day);
+  });
 
   document.getElementById("import-plan").addEventListener("click", () => {
     const errEl = document.getElementById("plan-error");
@@ -108,19 +221,28 @@ function renderWorkoutsTab() {
       errEl.textContent = err.message;
     }
   });
-
   document.getElementById("sample-plan").addEventListener("click", () => {
     document.getElementById("plan-input").value = SAMPLE_PLAN;
   });
 
-  root.querySelector(".checklist").addEventListener("change", (e) => {
+  const checklist = root.querySelector(".checklist");
+  checklist.addEventListener("change", (e) => {
     const box = e.target.closest("input[type=checkbox]");
     if (!box) return;
-    App.state.active.workout[+box.dataset.i].done = box.checked;
+    const i = +box.dataset.i;
+    App.state.active.workout[i].done = box.checked;
     recalcExerciseBurn();
-    // Targeted update: toggle the item + refresh the burn pill, no full re-render.
     box.closest(".check-item").classList.toggle("done", box.checked);
     const pill = root.querySelector(".burn-pill");
     if (pill) pill.textContent = `🔥 ${App.state.active.exerciseBurn} kcal back`;
+    // Celebrate + full re-render only when the whole workout is finished.
+    if (App.state.active.workout.every((x) => x.done)) {
+      App.celebrate("🏆 Workout complete!");
+      renderWorkoutsTab();
+    }
+  });
+  checklist.addEventListener("click", (e) => {
+    const demo = e.target.closest(".demo-btn");
+    if (demo) openExerciseDemo(App.state.active.workout[+demo.dataset.i]);
   });
 }
