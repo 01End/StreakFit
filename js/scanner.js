@@ -35,11 +35,22 @@ function openScannerModal() {
     if (e.target === modal || e.target.closest(".ex-close")) closeScannerModal();
   });
 
-  _html5qr = new Html5Qrcode("reader");
+  // Restrict to product (UPC/EAN) barcodes — not QR codes.
+  let constructorCfg = { verbose: false };
+  if (typeof Html5QrcodeSupportedFormats !== "undefined") {
+    constructorCfg.formatsToSupport = [
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION,
+    ];
+  }
+  _html5qr = new Html5Qrcode("reader", constructorCfg);
   _html5qr
     .start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 260, height: 160 } },
+      { fps: 10, qrbox: { width: 280, height: 150 }, aspectRatio: 1.7 },
       (decodedText) => onBarcode(decodedText),
       () => {} // per-frame decode failures are normal; ignore
     )

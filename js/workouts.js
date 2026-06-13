@@ -110,6 +110,9 @@ function openExerciseDemo(item) {
   document.body.appendChild(modal);
   requestAnimationFrame(() => modal.classList.add("open"));
 
+  const fig = modal.querySelector(".ex-fig");
+  if (fig && window.startFigureAnim) startFigureAnim(fig);
+
   modal.addEventListener("click", (e) => {
     if (e.target === modal || e.target.closest(".ex-close")) closeExerciseDemo();
   });
@@ -143,6 +146,7 @@ function openExerciseDemo(item) {
 
 function closeExerciseDemo() {
   clearInterval(_restTimer);
+  if (window.stopFigureAnim) stopFigureAnim();
   const m = document.getElementById("ex-modal");
   if (m) m.remove();
 }

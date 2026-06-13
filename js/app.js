@@ -64,6 +64,7 @@ const App = {
     if (!s.active) s.active = this.blankActive(this.todayStr());
     if (!s.history) s.history = [];
     if (!s.customFoods) s.customFoods = [];
+    if (!s.weights) s.weights = [];
     if (typeof s.streak !== "number") s.streak = 0;
     // migrate old 8-glass water → ml (250 ml per glass)
     if (s.active.waterMl == null) s.active.waterMl = (s.active.water || 0) * 250;
@@ -72,9 +73,12 @@ const App = {
     if (!s.active.workout) s.active.workout = [];
     // profile defaults for new fields
     if (s.profile) {
-      if (s.profile.waterTargetMl == null) s.profile.waterTargetMl = Math.round(s.profile.weightKg * 35);
-      if (s.profile.lossRatePct == null) s.profile.lossRatePct = 0.75;
-      if (s.profile.goalWeightKg == null) s.profile.goalWeightKg = null;
+      const p = s.profile;
+      if (p.waterTargetMl == null) p.waterTargetMl = Math.round(p.weightKg * 35);
+      if (p.goalWeightKg == null) p.goalWeightKg = null;
+      if (p.goalWeeks == null) p.goalWeeks = null;
+      if (p.fiberTargetG == null) p.fiberTargetG = Math.max(25, Math.round((p.calorieTarget / 1000) * 14));
+      if (p.sodiumMaxMg == null) p.sodiumMaxMg = 2300;
     }
   },
 
@@ -101,7 +105,7 @@ const App = {
     return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
   },
 
-  /* ---------- TDEE / macro engine ---------- */
+  /* ---------- TDEE / macro engine (goal-timeframe driven) ---------- */
   computeTargets(profile) {
     const { weightKg: kg, heightCm: cm, age, gender, activityLevel } = profile;
     const bmr =
@@ -110,37 +114,54 @@ const App = {
         : 10 * kg + 6.25 * cm - 5 * age + 5;
     const tdee = bmr * (this.ACTIVITY_FACTORS[activityLevel] || 1.2);
     const floor = gender === "female" ? 1200 : 1500;
-    const calorieTarget = Math.max(Math.round(tdee - 750), floor);
+
+    // Deficit comes from the goal weight + chosen timeframe, else a default aggressive 750.
+    let requestedDeficit = 750;
+    if (profile.goalWeightKg && profile.goalWeeks && profile.goalWeightKg < kg) {
+      const weeklyKg = (kg - profile.goalWeightKg) / profile.goalWeeks;
+      requestedDeficit = Math.round((weeklyKg * this.KCAL_PER_KG_FAT) / 7);
+    }
+    // Cap so the target never drops below the safe floor.
+    const maxDeficit = Math.max(0, Math.round(tdee - floor));
+    const appliedDeficit = Math.min(requestedDeficit, maxDeficit);
+    const calorieTarget = Math.max(Math.round(tdee - appliedDeficit), floor);
 
     const proteinMinG = Math.round(2.0 * kg);
     const sugarMaxG = 36;
     const fatTargetG = Math.round(0.8 * kg);
     const remaining = calorieTarget - proteinMinG * 4 - fatTargetG * 9;
     const carbTargetG = Math.max(Math.round(remaining / 4), 0);
-
-    const waterTargetMl = Math.round(kg * 35); // ~35 ml per kg bodyweight
+    const fiberTargetG = Math.max(25, Math.round((calorieTarget / 1000) * 14)); // ~14 g / 1000 kcal
+    const sodiumMaxMg = 2300;
+    const waterTargetMl = Math.round(kg * 35);
 
     return {
       bmr: Math.round(bmr),
       tdee: Math.round(tdee),
+      requestedDeficit,
+      appliedDeficit,
       calorieTarget,
       proteinMinG,
       sugarMaxG,
       fatTargetG,
       carbTargetG,
+      fiberTargetG,
+      sodiumMaxMg,
       waterTargetMl,
     };
   },
 
   /* ---------- daily totals & burn ---------- */
   dayTotals() {
-    const t = { kcal: 0, protein: 0, carbs: 0, fats: 0, sugar: 0 };
+    const t = { kcal: 0, protein: 0, carbs: 0, fats: 0, sugar: 0, fiber: 0, sodium: 0 };
     for (const f of this.state.active.foods) {
       t.kcal += +f.kcal || 0;
       t.protein += +f.protein || 0;
       t.carbs += +f.carbs || 0;
       t.fats += +f.fats || 0;
       t.sugar += +f.sugar || 0;
+      t.fiber += +f.fiber || 0;
+      t.sodium += +f.sodium || 0;
     }
     return t;
   },
@@ -163,18 +184,122 @@ const App = {
     return totals.kcal <= target.calorieTarget && totals.protein >= target.proteinMinG;
   },
 
-  /* ---------- goal / weight-loss projection ---------- */
+  /* ---------- goal / weight-loss projection (timeframe-based) ---------- */
   goalProjection() {
     const p = this.state.profile;
     if (!p || !p.goalWeightKg || p.goalWeightKg >= p.weightKg) return null;
     const kgToLose = +(p.weightKg - p.goalWeightKg).toFixed(1);
-    const ratePct = p.lossRatePct || 0.75;
-    const weeklyKg = p.weightKg * (ratePct / 100);
-    const weeks = Math.ceil(kgToLose / weeklyKg);
-    const target = this.addDays(new Date(), weeks * 7);
-    const dailyDeficit = Math.round((weeklyKg * this.KCAL_PER_KG_FAT) / 7);
-    const actualDeficit = p.tdee - p.calorieTarget;
-    return { kgToLose, ratePct, weeklyKg: +weeklyKg.toFixed(2), weeks, target, dailyDeficit, actualDeficit };
+
+    // Deficit the plan actually applies (already floor-capped in computeTargets).
+    const appliedDeficit = p.tdee - p.calorieTarget;
+    const achievableWeeklyKg = (appliedDeficit * 7) / this.KCAL_PER_KG_FAT;
+    const achievableWeeks = achievableWeeklyKg > 0 ? Math.ceil(kgToLose / achievableWeeklyKg) : Infinity;
+
+    // What the user asked for (their chosen timeframe), if any.
+    const chosenWeeks = p.goalWeeks || achievableWeeks;
+    const requestedWeeklyKg = kgToLose / chosenWeeks;
+    const maxSafeWeeklyKg = p.weightKg * 0.01; // 1%/week ceiling
+    const safe = requestedWeeklyKg <= maxSafeWeeklyKg + 0.001;
+    const floored = achievableWeeks > chosenWeeks + 0; // target hit the floor → slower than asked
+
+    const etaWeeks = Math.max(chosenWeeks, achievableWeeks === Infinity ? chosenWeeks : achievableWeeks);
+    const target = this.addDays(new Date(), etaWeeks * 7);
+
+    return {
+      kgToLose,
+      chosenWeeks,
+      etaWeeks,
+      requestedWeeklyKg: +requestedWeeklyKg.toFixed(2),
+      achievableWeeklyKg: +achievableWeeklyKg.toFixed(2),
+      maxSafeWeeklyKg: +maxSafeWeeklyKg.toFixed(2),
+      safe,
+      floored,
+      appliedDeficit,
+      target,
+    };
+  },
+
+  /* ---------- weigh-ins & adaptive TDEE (MacroFactor-style) ---------- */
+  logWeight(kg) {
+    kg = +kg;
+    if (!kg || kg <= 0) return;
+    if (!this.state.weights) this.state.weights = [];
+    const today = this.todayStr();
+    const existing = this.state.weights.find((w) => w.date === today);
+    if (existing) existing.kg = kg;
+    else this.state.weights.push({ date: today, kg });
+    this.state.weights.sort((a, b) => a.date.localeCompare(b.date));
+    // Recalibrate formula targets to the new bodyweight (keeps goal + timeframe).
+    this.state.profile.weightKg = kg;
+    const t = this.computeTargets(this.state.profile);
+    Object.assign(this.state.profile, {
+      bmr: t.bmr, tdee: t.tdee, calorieTarget: t.calorieTarget,
+      proteinMinG: t.proteinMinG, fatTargetG: t.fatTargetG, carbTargetG: t.carbTargetG,
+      fiberTargetG: t.fiberTargetG, waterTargetMl: t.waterTargetMl,
+    });
+    this.save();
+  },
+
+  // Estimate real TDEE from weight trend vs logged intake over the recent window.
+  adaptiveTDEE() {
+    const ws = (this.state.weights || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    if (ws.length < 2) return { insufficient: true, reason: "Log your weight on at least 2 days." };
+    const first = ws[0], last = ws[ws.length - 1];
+    const spanDays = Math.round((new Date(last.date) - new Date(first.date)) / 86400000);
+    if (spanDays < 7) return { insufficient: true, reason: "Need ~1 week between first and latest weigh-in." };
+    // average logged intake across history days within the window
+    const inWindow = this.state.history.filter((h) => h.date >= first.date && h.date <= last.date && h.kcal > 0);
+    if (inWindow.length < 4) return { insufficient: true, reason: "Log your food on more days to calibrate." };
+    const avgIntake = inWindow.reduce((s, h) => s + h.kcal, 0) / inWindow.length;
+    const weightChange = last.kg - first.kg; // negative = lost
+    const tdee = Math.round(avgIntake - (weightChange * this.KCAL_PER_KG_FAT) / spanDays);
+    return { tdee, formula: this.state.profile.tdee, spanDays, weightChange: +weightChange.toFixed(1), avgIntake: Math.round(avgIntake), loggedDays: inWindow.length };
+  },
+
+  applyAdaptiveTDEE() {
+    const a = this.adaptiveTDEE();
+    if (a.insufficient) return;
+    const p = this.state.profile;
+    const deficit = p.tdee - p.calorieTarget;
+    const floor = p.gender === "female" ? 1200 : 1500;
+    p.tdee = a.tdee;
+    p.calorieTarget = Math.max(a.tdee - deficit, floor);
+    p.carbTargetG = Math.max(Math.round((p.calorieTarget - p.proteinMinG * 4 - p.fatTargetG * 9) / 4), 0);
+    this.save();
+  },
+
+  /* ---------- tiny SVG charts ---------- */
+  sparkline(values, color) {
+    if (!values.length) return "";
+    const w = 280, h = 70, pad = 6;
+    const min = Math.min(...values), max = Math.max(...values);
+    const range = max - min || 1;
+    const pts = values.map((v, i) => {
+      const x = pad + (i / (values.length - 1 || 1)) * (w - 2 * pad);
+      const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      <polyline fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${pts.join(" ")}"/>
+      ${pts.map((p) => `<circle cx="${p.split(",")[0]}" cy="${p.split(",")[1]}" r="2.5" fill="${color}"/>`).join("")}
+    </svg>`;
+  },
+
+  barsChart(items) {
+    if (!items.length) return "";
+    const w = 280, h = 80, pad = 4;
+    const max = Math.max(...items.map((i) => Math.max(i.value, i.target)), 1);
+    const bw = (w - 2 * pad) / items.length - 3;
+    return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      ${items.map((it, i) => {
+        const x = pad + i * ((w - 2 * pad) / items.length);
+        const bh = (it.value / max) * (h - 12);
+        const ty = h - 8 - (it.target / max) * (h - 12);
+        const col = it.value <= it.target ? "var(--good)" : "var(--danger)";
+        return `<rect x="${x.toFixed(1)}" y="${(h - 8 - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${col}"/>
+                <line x1="${x.toFixed(1)}" y1="${ty.toFixed(1)}" x2="${(x + bw).toFixed(1)}" y2="${ty.toFixed(1)}" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>`;
+      }).join("")}
+    </svg>`;
   },
 
   /* ---------- date rollover ---------- */
@@ -251,6 +376,17 @@ const App = {
             <label>Height (cm)<input name="heightCm" type="number" step="0.1" required value="${p.heightCm ?? ""}"></label>
             <label>Age<input name="age" type="number" required value="${p.age ?? ""}"></label>
           </div>
+          <label>Goal timeframe
+            <select name="goalWeeks">
+              <option value="" ${p.goalWeeks ? "" : "selected"}>Auto (safe aggressive)</option>
+              <option value="4" ${sel(String(p.goalWeeks), "4")}>1 month</option>
+              <option value="6" ${sel(String(p.goalWeeks), "6")}>6 weeks</option>
+              <option value="8" ${sel(String(p.goalWeeks), "8")}>2 months</option>
+              <option value="12" ${sel(String(p.goalWeeks), "12")}>3 months</option>
+              <option value="16" ${sel(String(p.goalWeeks), "16")}>4 months</option>
+              <option value="26" ${sel(String(p.goalWeeks), "26")}>6 months</option>
+            </select>
+          </label>
           <label>Gender
             <select name="gender">
               <option value="male" ${sel(p.gender, "male")}>Male</option>
@@ -269,14 +405,15 @@ const App = {
           <label>Goal<input value="Aggressive Cut" disabled></label>
           ${
             isEdit
-              ? `<details class="advanced"><summary>Advanced: override targets & pace</summary>
-                  <label>Loss pace (% bodyweight / week)<input name="lossRatePct" type="number" step="0.05" value="${p.lossRatePct ?? 0.75}"></label>
+              ? `<details class="advanced"><summary>Advanced: override targets</summary>
                   <label>Water target (ml)<input name="waterTargetMl" type="number" value="${p.waterTargetMl ?? ""}"></label>
                   <label>Calorie Target<input name="calorieTarget" type="number" value="${p.calorieTarget ?? ""}"></label>
                   <label>Protein Min (g)<input name="proteinMinG" type="number" value="${p.proteinMinG ?? ""}"></label>
                   <label>Sugar Max (g)<input name="sugarMaxG" type="number" value="${p.sugarMaxG ?? ""}"></label>
                   <label>Carb Target (g)<input name="carbTargetG" type="number" value="${p.carbTargetG ?? ""}"></label>
                   <label>Fat Target (g)<input name="fatTargetG" type="number" value="${p.fatTargetG ?? ""}"></label>
+                  <label>Fiber Target (g)<input name="fiberTargetG" type="number" value="${p.fiberTargetG ?? ""}"></label>
+                  <label>Sodium Max (mg)<input name="sodiumMaxMg" type="number" value="${p.sodiumMaxMg ?? ""}"></label>
                  </details>`
               : ""
           }
@@ -292,12 +429,12 @@ const App = {
       const base = {
         weightKg: +fd.get("weightKg"),
         goalWeightKg: fd.get("goalWeightKg") ? +fd.get("goalWeightKg") : null,
+        goalWeeks: fd.get("goalWeeks") ? +fd.get("goalWeeks") : null,
         heightCm: +fd.get("heightCm"),
         age: +fd.get("age"),
         gender: fd.get("gender"),
         activityLevel: fd.get("activityLevel"),
         goal: "aggressiveCut",
-        lossRatePct: fd.get("lossRatePct") ? +fd.get("lossRatePct") : 0.75,
       };
       const auto = this.computeTargets(base);
       const overrideOr = (key) => {
@@ -313,6 +450,8 @@ const App = {
         sugarMaxG: overrideOr("sugarMaxG"),
         carbTargetG: overrideOr("carbTargetG"),
         fatTargetG: overrideOr("fatTargetG"),
+        fiberTargetG: overrideOr("fiberTargetG"),
+        sodiumMaxMg: overrideOr("sodiumMaxMg"),
         waterTargetMl: overrideOr("waterTargetMl"),
       };
       this.save();
@@ -402,18 +541,27 @@ const App = {
       verdicts.push(`<li class="v-bad">🚫 Sugar over by ${Math.round(t.sugar - p.sugarMaxG)} g</li>`);
 
     const gp = this.goalProjection();
-    const goalCard = gp
-      ? `<div class="card goal-card">
+    let goalCard;
+    if (gp) {
+      const warn = !gp.safe
+        ? `<div class="goal-warn">⚠️ That pace (${gp.requestedWeeklyKg} kg/wk) is faster than the safe max of ${gp.maxSafeWeeklyKg} kg/wk — I floored your calories safely, so realistic finish is shown below.</div>`
+        : gp.floored
+        ? `<div class="goal-warn">ℹ️ Calories floored at the safe minimum, so the realistic finish is a bit later than your chosen date.</div>`
+        : "";
+      goalCard = `<div class="card goal-card">
            <h3>🎯 Goal</h3>
            <div class="goal-big">${gp.kgToLose} kg <span class="muted">to go</span></div>
-           <div class="goal-line">~${gp.weeks} weeks → <strong>${this.prettyDate(gp.target)}</strong></div>
-           <div class="muted small">Safe pace ${gp.ratePct}%/wk (~${gp.weeklyKg} kg/wk) · current deficit ${gp.actualDeficit} kcal/day</div>
-         </div>`
-      : `<div class="card goal-card muted-card">
-           <h3>🎯 Goal</h3>
-           <p class="muted small">Add a goal weight in your profile to see your projected finish date.</p>
-           <button id="set-goal" class="btn-ghost">Set a goal weight</button>
+           <div class="goal-line">~${gp.etaWeeks} weeks → <strong>${this.prettyDate(gp.target)}</strong></div>
+           <div class="muted small">~${gp.achievableWeeklyKg} kg/wk · deficit ${gp.appliedDeficit} kcal/day${gp.chosenWeeks ? ` · target ${gp.chosenWeeks} wk` : ""}</div>
+           ${warn}
          </div>`;
+    } else {
+      goalCard = `<div class="card goal-card muted-card">
+           <h3>🎯 Goal</h3>
+           <p class="muted small">Set a goal weight + timeframe in your profile to see your projected finish date.</p>
+           <button id="set-goal" class="btn-ghost">Set a goal</button>
+         </div>`;
+    }
 
     const targetMl = p.waterTargetMl;
     const cupsCount = Math.max(1, Math.round(targetMl / 250));
@@ -424,7 +572,10 @@ const App = {
     root.innerHTML = `
       <header class="dash-head">
         <div class="streak">🔥 <span>${this.state.streak}</span> day streak</div>
-        <button id="edit-profile" class="btn-ghost small">⚙︎</button>
+        <div class="head-btns">
+          <button id="open-progress" class="btn-ghost small">📈</button>
+          <button id="edit-profile" class="btn-ghost small">⚙︎</button>
+        </div>
       </header>
 
       <p class="motivation">“${this.dailyMotivation()}”</p>
@@ -466,14 +617,17 @@ const App = {
       </div>
 
       <div class="card macros-mini">
-        <h3>Macros today</h3>
+        <h3>Macros & micros today</h3>
         <div class="macro-row"><span>Carbs</span><span>${Math.round(t.carbs)} / ${p.carbTargetG} g</span></div>
         <div class="macro-row"><span>Fats</span><span>${Math.round(t.fats)} / ${p.fatTargetG} g</span></div>
+        <div class="macro-row"><span>Fiber</span><span class="${t.fiber >= (p.fiberTargetG || 25) ? "v-good" : ""}">${Math.round(t.fiber)} / ${p.fiberTargetG || 25} g</span></div>
+        <div class="macro-row"><span>Sodium</span><span class="${t.sodium > (p.sodiumMaxMg || 2300) ? "v-bad" : ""}">${Math.round(t.sodium)} / ${p.sodiumMaxMg || 2300} mg</span></div>
         <div class="macro-row"><span>Workout burn</span><span>${this.state.active.exerciseBurn || 0} kcal</span></div>
         <div class="macro-row muted"><span>Base target</span><span>${p.calorieTarget} kcal · TDEE ${p.tdee}</span></div>
       </div>`;
 
     document.getElementById("edit-profile").addEventListener("click", () => this.renderProfileForm(true));
+    document.getElementById("open-progress").addEventListener("click", () => this.renderProgress());
     const setGoalBtn = document.getElementById("set-goal");
     if (setGoalBtn) setGoalBtn.addEventListener("click", () => this.renderProfileForm(true));
 
@@ -498,6 +652,86 @@ const App = {
     stepsEl.addEventListener("change", (e) => this.setSteps(e.target.value));
   },
 
+  /* ---------- progress / trends modal ---------- */
+  renderProgress() {
+    const p = this.state.profile;
+    const ws = (this.state.weights || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    const hist = this.state.history.slice(-14);
+
+    const a = this.adaptiveTDEE();
+    const adaptiveCard = a.insufficient
+      ? `<div class="prog-stat"><span class="muted small">⚙️ Adaptive TDEE: ${a.reason}</span></div>`
+      : `<div class="prog-stat">
+           <div class="prog-stat-main">${a.tdee} <span class="muted">kcal adaptive TDEE</span></div>
+           <div class="muted small">vs formula ${a.formula} · ${a.weightChange > 0 ? "+" : ""}${a.weightChange} kg over ${a.spanDays} days (${a.loggedDays} logged)</div>
+           <button id="apply-tdee" class="btn-ghost">Apply to my targets</button>
+         </div>`;
+
+    const weightVals = ws.map((w) => w.kg);
+    const weightChart = ws.length >= 2
+      ? `${this.sparkline(weightVals, "var(--lime)")}<div class="chart-cap muted small">${ws[0].kg} → ${ws[ws.length - 1].kg} kg · ${ws.length} weigh-ins</div>`
+      : `<p class="muted small">Log your weight regularly to see your trend.</p>`;
+
+    const calItems = hist.map((h) => ({ value: h.kcal, target: h.target || p.calorieTarget }));
+    const calChart = calItems.length
+      ? `${this.barsChart(calItems)}<div class="chart-cap muted small">Calories vs target · last ${calItems.length} days (line = target)</div>`
+      : `<p class="muted small">Your daily history will chart here after a few days.</p>`;
+
+    const proteinDays = this.state.history.slice(-14);
+    const proteinHits = proteinDays.filter((h) => h.protein >= p.proteinMinG).length;
+    const goalDays = this.state.history.slice(-30);
+    const goalHits = goalDays.filter((h) => h.metGoal).length;
+
+    const modal = document.createElement("div");
+    modal.id = "progress-modal";
+    modal.innerHTML = `
+      <div class="ex-modal-card">
+        <button class="ex-close" aria-label="close">✕</button>
+        <h3 class="ex-title">📈 Progress</h3>
+
+        <div class="prog-section">
+          <h4>Weigh-in</h4>
+          <div class="search-row">
+            <input id="weigh-input" type="number" step="0.1" placeholder="Today's weight (kg)" value="${ws.length ? ws[ws.length - 1].kg : p.weightKg}">
+            <button id="weigh-log" class="btn-primary" style="width:auto">Log</button>
+          </div>
+          ${weightChart}
+        </div>
+
+        <div class="prog-section">${adaptiveCard}</div>
+
+        <div class="prog-section">
+          <h4>Calories vs target</h4>
+          ${calChart}
+        </div>
+
+        <div class="prog-section">
+          <h4>Consistency</h4>
+          <div class="prog-grid">
+            <div class="prog-pill"><b>🔥 ${this.state.streak}</b><span>streak</span></div>
+            <div class="prog-pill"><b>${proteinHits}/${proteinDays.length || 0}</b><span>protein (14d)</span></div>
+            <div class="prog-pill"><b>${goalHits}/${goalDays.length || 0}</b><span>goal days (30d)</span></div>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add("open"));
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal || e.target.closest(".ex-close")) modal.remove();
+    });
+    modal.querySelector("#weigh-log").addEventListener("click", () => {
+      const v = +modal.querySelector("#weigh-input").value;
+      if (v > 0) { this.logWeight(v); modal.remove(); this.renderProgress(); this.renderDashboard(); }
+    });
+    const applyBtn = modal.querySelector("#apply-tdee");
+    if (applyBtn) applyBtn.addEventListener("click", () => {
+      this.applyAdaptiveTDEE();
+      this.celebrateMini("TDEE updated ✓");
+      modal.remove();
+      this.renderDashboard();
+    });
+  },
+
   /* ---------- celebration ---------- */
   celebrate(message) {
     const layer = document.createElement("div");
@@ -515,6 +749,19 @@ const App = {
     layer.innerHTML = `<div class="celebrate-msg">${message}</div>${bits}`;
     document.body.appendChild(layer);
     setTimeout(() => layer.remove(), 2200);
+  },
+
+  // Small "added" toast for routine actions (food logged, etc.).
+  celebrateMini(message = "Added ✓") {
+    const t = document.createElement("div");
+    t.className = "toast";
+    t.textContent = message;
+    document.body.appendChild(t);
+    requestAnimationFrame(() => t.classList.add("show"));
+    setTimeout(() => {
+      t.classList.remove("show");
+      setTimeout(() => t.remove(), 300);
+    }, 1100);
   },
 
   /* ---------- export / import ---------- */

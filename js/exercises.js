@@ -1,10 +1,10 @@
 /* StreakFit — exercise library + offline animated demonstrator.
  *
- * Each exercise: { name, anim, equip, cues[], met }
- *  - anim : which looping figure animation to play (see exerciseFigure + CSS @keyframes)
- *  - met  : metabolic equivalent, used to estimate calories per set
- * The figure is a pure SVG "mannequin"; animations are CSS keyframes in style.css,
- * selected by the `anim-<key>` class. Works fully offline — no GIFs, no network.
+ * Each exercise: { name, anim, equip, cues[], met }.
+ * The demonstrator is a connected stick figure animated POSE-TO-POSE with SMIL:
+ * every joint has a start pose (A) and end pose (B), and we animate the bone
+ * endpoints between them. Because joints are shared coordinates, the figure stays
+ * connected and anatomically correct for each movement. Fully offline, no media.
  */
 const EXERCISES = {
   // ---- Push ----
@@ -40,7 +40,7 @@ const EXERCISES = {
     cues: ["Hold one DB at your chest", "Sit back and down, chest up", "Knees track over toes", "Drive through your heels"] },
   bw_squat:      { name: "Bodyweight Squat", anim: "squat", equip: "Bodyweight", met: 5,
     cues: ["Feet shoulder-width", "Hips back like sitting in a chair", "Thighs to parallel", "Stand tall, squeeze glutes"] },
-  reverse_lunge: { name: "DB Reverse Lunge", anim: "squat", equip: "Dumbbells", met: 6,
+  reverse_lunge: { name: "DB Reverse Lunge", anim: "lunge", equip: "Dumbbells", met: 6,
     cues: ["Step back into a lunge", "Front thigh to parallel", "Keep torso upright", "Push through the front heel"] },
   rdl:           { name: "DB Romanian Deadlift", anim: "hinge", equip: "Dumbbells", met: 6,
     cues: ["Soft knees, push hips BACK", "Flat back throughout", "Feel the hamstring stretch", "Drive hips forward to stand"] },
@@ -70,91 +70,120 @@ function getExercise(key) {
   return EXERCISES[key] || { name: key, anim: "squat", equip: "", cues: [], met: 5 };
 }
 
-/* The animated mannequin. `anim` selects which scene + CSS animation to play.
- * Upright/hanging moves use the side-view skeleton; pushup/plank use a side scene;
- * jacks/knees use a front-view scene. All looping, all offline. */
+/* ============================ animated figure (JS rAF, pose-to-pose) ============================
+ * Bones are <line> elements tagged with the joint names they connect (data-j1/data-j2).
+ * A small requestAnimationFrame loop interpolates each joint A↔B and updates the line
+ * coordinates — reliable across browsers (unlike SMIL inserted via innerHTML). */
+function _bone(j1, j2, cls) {
+  return `<line class="bone ${cls || ""}" data-j1="${j1}" data-j2="${j2}" x1="0" y1="0" x2="0" y2="0"></line>`;
+}
+
+// Side-view figure. Joints: head,S(shoulder),E(elbow),H(hand),P(hip),K(knee),F(foot)[,K2,F2].
+function figSide(cfg, anim) {
+  const groundY = cfg.groundY != null ? cfg.groundY : 122;
+  const bar = cfg.bar ? `<line class="ex-bar" x1="28" y1="14" x2="102" y2="14"></line>` : "";
+  const legs2 = cfg.A.K2 ? _bone("P", "K2") + _bone("K2", "F2") : "";
+  return `
+  <svg class="ex-fig" data-anim="${anim}" viewBox="0 0 140 140" role="img" aria-label="exercise demonstration">
+    <line class="ex-ground" x1="14" y1="${groundY}" x2="126" y2="${groundY}"></line>
+    ${bar}
+    ${_bone("S", "P", "spine")}${_bone("P", "K")}${_bone("K", "F")}${legs2}
+    ${_bone("S", "E")}${_bone("E", "H")}
+    <circle class="head" r="10" cx="0" cy="0"></circle>
+  </svg>`;
+}
+
+// Front-view figure. Joints: head,S,P, EL,HL,ER,HR, KL,FL,KR,FR.
+function figFront(cfg, anim) {
+  return `
+  <svg class="ex-fig" data-anim="${anim}" viewBox="0 0 120 138" role="img" aria-label="exercise demonstration">
+    <line class="ex-ground" x1="16" y1="122" x2="104" y2="122"></line>
+    ${_bone("S", "P", "spine")}
+    ${_bone("S", "EL")}${_bone("EL", "HL")}${_bone("S", "ER")}${_bone("ER", "HR")}
+    ${_bone("P", "KL")}${_bone("KL", "FL")}${_bone("P", "KR")}${_bone("KR", "FR")}
+    <circle class="head" r="10" cx="0" cy="0"></circle>
+  </svg>`;
+}
+
+let _figRAF = null;
+function startFigureAnim(svg) {
+  stopFigureAnim();
+  const cfg = POSES[svg.dataset.anim] || POSES.squat;
+  const dur = (parseFloat(cfg.dur) || 1.5) * 1000;
+  const bones = [...svg.querySelectorAll("line.bone")];
+  const head = svg.querySelector("circle.head");
+  const lerp = (a, b, e) => a + (b - a) * e;
+  const setLine = (ln, e) => {
+    const a = cfg.A, b = cfg.B, j1 = ln.dataset.j1, j2 = ln.dataset.j2;
+    ln.setAttribute("x1", lerp(a[j1][0], b[j1][0], e));
+    ln.setAttribute("y1", lerp(a[j1][1], b[j1][1], e));
+    ln.setAttribute("x2", lerp(a[j2][0], b[j2][0], e));
+    ln.setAttribute("y2", lerp(a[j2][1], b[j2][1], e));
+  };
+  const draw = (e) => {
+    bones.forEach((ln) => setLine(ln, e));
+    if (head) { head.setAttribute("cx", lerp(cfg.A.head[0], cfg.B.head[0], e)); head.setAttribute("cy", lerp(cfg.A.head[1], cfg.B.head[1], e)); }
+  };
+  // Demos always animate — the movement is the instructional content (decorative
+  // app animations still respect prefers-reduced-motion via CSS).
+  const start = performance.now();
+  const frame = (now) => {
+    const t = ((now - start) % (2 * dur)) / dur; // 0..2
+    let e = t < 1 ? t : 2 - t; // triangle 0..1..0
+    e = e * e * (3 - 2 * e); // smoothstep ease
+    draw(e);
+    _figRAF = requestAnimationFrame(frame);
+  };
+  _figRAF = requestAnimationFrame(frame);
+}
+function stopFigureAnim() {
+  if (_figRAF) cancelAnimationFrame(_figRAF);
+  _figRAF = null;
+}
+
+const POSES = {
+  // SQUAT — feet planted, hips sit back & down, knees forward, torso leans.
+  squat: { dur: "1.6s", A: { head: [60, 20], S: [60, 34], P: [60, 66], K: [60, 92], F: [58, 120], E: [56, 50], H: [50, 56] },
+                        B: { head: [72, 42], S: [66, 54], P: [50, 80], K: [76, 94], F: [58, 120], E: [62, 66], H: [56, 70] } },
+  // LUNGE — step back: front leg bends, back leg extends behind (2nd leg via K2/F2).
+  lunge: { dur: "1.8s", A: { head: [60, 20], S: [60, 34], P: [60, 66], K: [60, 92], F: [60, 120], K2: [60, 92], F2: [60, 120], E: [60, 50], H: [60, 64] },
+                        B: { head: [58, 28], S: [58, 42], P: [58, 74], K: [64, 96], F: [62, 120], K2: [80, 104], F2: [98, 120], E: [58, 58], H: [58, 72] } },
+  // HINGE (RDL) — hips push back, flat back bows forward, arms hang to shins.
+  hinge: { dur: "1.8s", A: { head: [60, 20], S: [60, 34], P: [60, 66], K: [60, 92], F: [60, 120], E: [60, 50], H: [60, 66] },
+                        B: { head: [100, 56], S: [86, 58], P: [50, 66], K: [56, 92], F: [60, 120], E: [88, 76], H: [88, 94] } },
+  // PRESS — overhead press: hands from shoulders to overhead.
+  press: { dur: "1.4s", A: { head: [60, 22], S: [60, 36], P: [60, 70], K: [60, 96], F: [60, 122], E: [46, 38], H: [50, 28] },
+                        B: { head: [60, 22], S: [60, 36], P: [60, 70], K: [60, 96], F: [60, 122], E: [56, 18], H: [60, 4] } },
+  // CURL — upper arm pinned, forearm curls up.
+  curl: { dur: "1.3s", A: { head: [60, 22], S: [60, 36], P: [60, 70], K: [60, 96], F: [60, 122], E: [60, 54], H: [60, 72] },
+                       B: { head: [60, 22], S: [60, 36], P: [60, 70], K: [60, 96], F: [60, 122], E: [60, 54], H: [49, 40] } },
+  // ROW — bent over, elbow drives back to waist.
+  row: { dur: "1.3s", A: { head: [98, 52], S: [84, 56], P: [52, 66], K: [56, 92], F: [60, 120], E: [84, 76], H: [84, 94] },
+                      B: { head: [98, 52], S: [84, 56], P: [52, 66], K: [56, 92], F: [60, 120], E: [76, 64], H: [66, 60] } },
+  // PULLUP — hands fixed on bar, body rises.
+  pullup: { dur: "1.8s", bar: true, A: { head: [60, 38], S: [60, 50], P: [60, 84], K: [60, 108], F: [60, 128], E: [57, 30], H: [56, 14] },
+                                    B: { head: [60, 20], S: [60, 32], P: [60, 66], K: [60, 90], F: [60, 110], E: [53, 22], H: [56, 14] } },
+  // CALF — rise onto toes (whole body lifts a touch).
+  calf: { dur: "1s", A: { head: [60, 22], S: [60, 36], P: [60, 70], K: [60, 96], F: [60, 122], E: [60, 52], H: [60, 70] },
+                     B: { head: [60, 14], S: [60, 28], P: [60, 62], K: [60, 88], F: [60, 120], E: [60, 44], H: [60, 62] } },
+  // PUSHUP — side plank that dips (ground raised to body level).
+  pushup: { dur: "1.3s", groundY: 88, A: { head: [26, 50], S: [40, 54], P: [80, 66], K: [104, 74], F: [124, 82], E: [40, 70], H: [42, 84] },
+                                       B: { head: [26, 60], S: [40, 64], P: [80, 72], K: [104, 78], F: [124, 84], E: [34, 74], H: [42, 84] } },
+  // PLANK — hold, tiny bob.
+  plank: { dur: "3s", groundY: 88, A: { head: [26, 56], S: [40, 60], P: [80, 70], K: [104, 78], F: [124, 84], E: [40, 78], H: [40, 84] },
+                                   B: { head: [26, 58], S: [40, 62], P: [80, 72], K: [104, 80], F: [124, 85], E: [40, 80], H: [40, 84] } },
+  // JACKS — front view, arms + legs open/close with a small jump.
+  jacks: { view: "front", dur: "0.8s",
+    A: { head: [60, 16], S: [60, 34], P: [60, 74], EL: [52, 52], HL: [48, 70], ER: [68, 52], HR: [72, 70], KL: [56, 98], FL: [54, 120], KR: [64, 98], FR: [66, 120] },
+    B: { head: [60, 12], S: [60, 30], P: [60, 70], EL: [44, 22], HL: [34, 8], ER: [76, 22], HR: [86, 8], KL: [46, 100], FL: [38, 120], KR: [74, 100], FR: [82, 120] } },
+  // KNEES — front view, alternate knee drive (A: left up, B: right up).
+  knees: { view: "front", dur: "0.7s",
+    A: { head: [60, 16], S: [60, 34], P: [60, 74], EL: [52, 52], HL: [50, 70], ER: [70, 48], HR: [74, 34], KL: [58, 88], FL: [56, 74], KR: [64, 98], FR: [66, 120] },
+    B: { head: [60, 16], S: [60, 34], P: [60, 74], EL: [50, 48], HL: [46, 34], ER: [68, 52], HR: [70, 70], KL: [56, 98], FL: [54, 120], KR: [62, 88], FR: [64, 74] } },
+};
+POSES.burpee = POSES.squat; // burpee shown as a squat-to-jump style cycle
+
 function exerciseFigure(anim) {
-  if (anim === "pushup" || anim === "plank") return figHorizontal(anim);
-  if (anim === "jacks") return figJacks();
-  if (anim === "knees") return figKnees();
-  return figSkeleton(anim);
-}
-
-function figSkeleton(anim) {
-  return `
-  <svg class="ex-fig anim-${anim}" viewBox="0 0 120 150" role="img" aria-label="exercise demonstration">
-    <line class="ex-ground" x1="18" y1="136" x2="102" y2="136"></line>
-    <line class="ex-bar" x1="28" y1="12" x2="92" y2="12"></line>
-    <g class="fig">
-      <g class="lower" transform="translate(60,80)">
-        <g class="thigh">
-          <rect class="seg" x="-4" y="0" width="8" height="28" rx="4"></rect>
-          <g class="shin" transform="translate(0,28)">
-            <rect class="seg" x="-4" y="0" width="8" height="28" rx="4"></rect>
-            <rect class="foot" x="-8" y="25" width="16" height="5" rx="2.5"></rect>
-          </g>
-        </g>
-      </g>
-      <g class="upper" transform="translate(60,80)">
-        <g class="torso">
-          <rect class="seg spine" x="-4.5" y="-36" width="9" height="38" rx="4.5"></rect>
-          <circle class="head" cx="0" cy="-48" r="11"></circle>
-          <g class="uarm" transform="translate(0,-34)">
-            <rect class="seg" x="-3.5" y="0" width="7" height="20" rx="3.5"></rect>
-            <g class="farm" transform="translate(0,20)">
-              <rect class="seg" x="-3.5" y="0" width="7" height="18" rx="3.5"></rect>
-            </g>
-          </g>
-        </g>
-      </g>
-    </g>
-  </svg>`;
-}
-
-/* Side-view pushup / plank: a near-horizontal body that dips. */
-function figHorizontal(anim) {
-  return `
-  <svg class="ex-fig anim-${anim}" viewBox="0 0 140 100" role="img" aria-label="exercise demonstration">
-    <line class="ex-ground" x1="14" y1="84" x2="128" y2="84"></line>
-    <g class="phbody">
-      <circle class="head" cx="28" cy="42" r="10"></circle>
-      <line class="bone" x1="36" y1="46" x2="86" y2="60"></line>
-      <line class="bone" x1="86" y1="60" x2="124" y2="78"></line>
-      <line class="bone foot-bone" x1="124" y1="78" x2="132" y2="80"></line>
-      <line class="bone arm" x1="44" y1="48" x2="46" y2="82"></line>
-      <line class="bone arm forearm" x1="46" y1="82" x2="40" y2="82"></line>
-    </g>
-  </svg>`;
-}
-
-/* Front-view jumping jacks. */
-function figJacks() {
-  return `
-  <svg class="ex-fig anim-jacks" viewBox="0 0 120 140" role="img" aria-label="exercise demonstration">
-    <line class="ex-ground" x1="20" y1="128" x2="100" y2="128"></line>
-    <g class="jfig">
-      <circle class="head" cx="60" cy="24" r="11"></circle>
-      <line class="bone" x1="60" y1="35" x2="60" y2="78"></line>
-      <g class="armL"><line class="bone" x1="60" y1="40" x2="60" y2="72"></line></g>
-      <g class="armR"><line class="bone" x1="60" y1="40" x2="60" y2="72"></line></g>
-      <g class="legL"><line class="bone" x1="60" y1="78" x2="60" y2="120"></line></g>
-      <g class="legR"><line class="bone" x1="60" y1="78" x2="60" y2="120"></line></g>
-    </g>
-  </svg>`;
-}
-
-/* Front-view high knees / running in place. */
-function figKnees() {
-  return `
-  <svg class="ex-fig anim-knees" viewBox="0 0 120 140" role="img" aria-label="exercise demonstration">
-    <line class="ex-ground" x1="20" y1="128" x2="100" y2="128"></line>
-    <g class="kfig">
-      <circle class="head" cx="60" cy="24" r="11"></circle>
-      <line class="bone" x1="60" y1="35" x2="60" y2="78"></line>
-      <g class="armL"><line class="bone" x1="60" y1="42" x2="60" y2="72"></line></g>
-      <g class="armR"><line class="bone" x1="60" y1="42" x2="60" y2="72"></line></g>
-      <g class="legL"><line class="bone" x1="60" y1="78" x2="60" y2="118"></line></g>
-      <g class="legR"><line class="bone" x1="60" y1="78" x2="60" y2="118"></line></g>
-    </g>
-  </svg>`;
+  const cfg = POSES[anim] || POSES.squat;
+  return cfg.view === "front" ? figFront(cfg, anim) : figSide(cfg, anim);
 }
