@@ -118,6 +118,9 @@ function renderWorkoutsTab() {
     if (!box) return;
     App.state.active.workout[+box.dataset.i].done = box.checked;
     recalcExerciseBurn();
-    renderWorkoutsTab();
+    // Targeted update: toggle the item + refresh the burn pill, no full re-render.
+    box.closest(".check-item").classList.toggle("done", box.checked);
+    const pill = root.querySelector(".burn-pill");
+    if (pill) pill.textContent = `🔥 ${App.state.active.exerciseBurn} kcal back`;
   });
 }

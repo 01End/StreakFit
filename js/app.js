@@ -143,7 +143,21 @@ const App = {
   setWater(glasses) {
     this.state.active.water = glasses;
     this.save();
-    this.renderDashboard();
+    this.updateWaterUI();
+  },
+
+  // Targeted refresh of just the glasses + water ring (avoids re-animating the whole dashboard).
+  updateWaterUI() {
+    const w = this.state.active.water;
+    document.querySelectorAll("#glasses .glass").forEach((g, i) => g.classList.toggle("filled", i < w));
+    const wrap = document.querySelector('.ring-wrap[data-ring="water"]');
+    if (wrap) {
+      const r = 42;
+      const c = 2 * Math.PI * r;
+      const off = c * (1 - Math.min(1, w / 8));
+      wrap.querySelector(".ring-fg").style.setProperty("--off", off.toFixed(2));
+      wrap.querySelector(".ring-val").textContent = `${w}/8`;
+    }
   },
 
   setSteps(steps) {
@@ -239,11 +253,11 @@ const App = {
     const pct = Math.max(0, Math.min(1, percent));
     const offset = c * (1 - pct);
     return `
-      <div class="ring-wrap">
+      <div class="ring-wrap" data-ring="${label}">
         <svg viewBox="0 0 100 100" class="ring">
           <circle cx="50" cy="50" r="${r}" class="ring-bg"></circle>
           <circle cx="50" cy="50" r="${r}" class="ring-fg"
-            style="stroke:${color};stroke-dasharray:${c};stroke-dashoffset:${offset}"></circle>
+            style="--rc:${color};--c:${c.toFixed(2)};--off:${offset.toFixed(2)}"></circle>
         </svg>
         <div class="ring-center"><span class="ring-val">${valueText}</span><span class="ring-label">${label}</span></div>
       </div>`;
@@ -325,6 +339,9 @@ const App = {
       const i = +btn.dataset.i;
       // Tapping the highest filled glass empties it; otherwise fill up to tapped.
       const next = this.state.active.water === i + 1 ? i : i + 1;
+      btn.classList.remove("pop");
+      void btn.offsetWidth; // restart animation
+      btn.classList.add("pop");
       this.setWater(next);
     });
     const stepsEl = document.getElementById("steps-input");
