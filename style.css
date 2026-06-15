@@ -492,12 +492,12 @@ label input, label select { color: var(--text); }
 }
 
 /* ---- modals (exercise demo + scanner) ---- */
-#ex-modal, #scan-modal, #food-modal, #progress-modal, #calc-modal {
+#ex-modal, #scan-modal, #food-modal, #progress-modal, #calc-modal, #photo-modal {
   position: fixed; inset: 0; z-index: 150; display: flex; align-items: center; justify-content: center;
   padding: 16px; background: rgba(4, 5, 8, 0.72); backdrop-filter: blur(8px);
   opacity: 0; transition: opacity 0.25s;
 }
-#ex-modal.open, #scan-modal.open, #food-modal.open, #progress-modal.open, #calc-modal.open { opacity: 1; }
+#ex-modal.open, #scan-modal.open, #food-modal.open, #progress-modal.open, #calc-modal.open, #photo-modal.open { opacity: 1; }
 .ex-modal-card, .scan-card {
   position: relative; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
   background: linear-gradient(165deg, var(--surface-2), var(--surface));
@@ -713,3 +713,14 @@ label input, label select { color: var(--text); }
 .water-custom { gap: 8px; }
 .water-custom input { margin-top: 0; }
 .water-custom .btn-ghost { padding: 11px 12px; }
+
+/* ---- photo meal ---- */
+.snap-btn { margin: 10px 0 4px; }
+.photo-preview { width: 100%; max-height: 220px; object-fit: cover; border-radius: 14px; margin: 4px 0 12px; border: 1px solid var(--border); }
+.analyzing { text-align: center; padding: 18px 0; }
+.photo-items { list-style: none; padding: 0; margin: 6px 0; }
+.pi-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.pi-name { flex: 1; font-weight: 500; font-size: 0.9rem; }
+.pi-grams { width: 66px; margin: 0; padding: 7px 8px; text-align: right; }
+.pi-kcal { font-family: var(--font-display); font-weight: 600; font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+.pi-del { padding: 4px 8px; }

@@ -176,8 +176,9 @@ function renderLogTab() {
     <div class="card">
       <div class="search-row">
         <input id="food-search" class="search" type="search" placeholder="Search foods (e.g. chicken, rice, labneh)…" autocomplete="off">
-        <button id="scan-btn" class="btn-scan" title="Scan barcode">📷</button>
+        <button id="scan-btn" class="btn-scan" title="Scan barcode">▮▮</button>
       </div>
+      <button id="snap-meal" class="btn-primary snap-btn">📸 Snap a meal (photo)</button>
       <ul id="search-results" class="results"></ul>
       <button id="online-search" class="btn-ghost" style="display:none">🔎 Search Open Food Facts (online)</button>
       <ul id="online-results" class="results"></ul>
@@ -366,6 +367,7 @@ function renderLogTab() {
   });
 
   document.getElementById("scan-btn").addEventListener("click", () => initBarcodeScanner());
+  document.getElementById("snap-meal").addEventListener("click", () => openPhotoLog());
 }
 
 function renderRecipeDraft() {

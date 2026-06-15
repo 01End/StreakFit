@@ -65,6 +65,8 @@ const App = {
     if (!s.history) s.history = [];
     if (!s.customFoods) s.customFoods = [];
     if (!s.weights) s.weights = [];
+    if (!s.settings) s.settings = {};
+    if (!s.settings.visionModel) s.settings.visionModel = "meta-llama/llama-4-maverick:free";
     if (typeof s.streak !== "number") s.streak = 0;
     // migrate old 8-glass water → ml (250 ml per glass)
     if (s.active.waterMl == null) s.active.waterMl = (s.active.water || 0) * 250;
@@ -457,6 +459,15 @@ const App = {
                  </details>`
               : ""
           }
+          ${
+            isEdit
+              ? `<details class="advanced"><summary>📷 Photo logging (OpenRouter)</summary>
+                  <label>OpenRouter API key<input name="openrouterKey" type="password" placeholder="sk-or-..." value="${(this.state.settings || {}).openrouterKey || ""}"></label>
+                  <label>Vision model<input name="visionModel" value="${(this.state.settings || {}).visionModel || "meta-llama/llama-4-maverick:free"}"></label>
+                  <p class="muted small">Stored on this device only. Free key: openrouter.ai → Keys. Leave blank to use the chat-handoff flow.</p>
+                 </details>`
+              : ""
+          }
           <button type="submit" class="btn-primary">${isEdit ? "Save" : "Calculate & Start"}</button>
           ${isEdit ? `<button type="button" id="cancel-edit" class="btn-ghost">Cancel</button>` : ""}
         </form>
@@ -495,6 +506,11 @@ const App = {
         sodiumMaxMg: overrideOr("sodiumMaxMg"),
         waterTargetMl: overrideOr("waterTargetMl"),
       };
+      if (fd.has("openrouterKey")) {
+        this.state.settings = this.state.settings || {};
+        this.state.settings.openrouterKey = (fd.get("openrouterKey") || "").trim();
+        this.state.settings.visionModel = (fd.get("visionModel") || "").trim() || "meta-llama/llama-4-maverick:free";
+      }
       this.save();
       this.renderDashboard();
     });
