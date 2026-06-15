@@ -492,12 +492,12 @@ label input, label select { color: var(--text); }
 }
 
 /* ---- modals (exercise demo + scanner) ---- */
-#ex-modal, #scan-modal, #food-modal, #progress-modal {
+#ex-modal, #scan-modal, #food-modal, #progress-modal, #calc-modal {
   position: fixed; inset: 0; z-index: 150; display: flex; align-items: center; justify-content: center;
   padding: 16px; background: rgba(4, 5, 8, 0.72); backdrop-filter: blur(8px);
   opacity: 0; transition: opacity 0.25s;
 }
-#ex-modal.open, #scan-modal.open, #food-modal.open, #progress-modal.open { opacity: 1; }
+#ex-modal.open, #scan-modal.open, #food-modal.open, #progress-modal.open, #calc-modal.open { opacity: 1; }
 .ex-modal-card, .scan-card {
   position: relative; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
   background: linear-gradient(165deg, var(--surface-2), var(--surface));
@@ -692,3 +692,24 @@ label input, label select { color: var(--text); }
 .prog-pill { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 8px; text-align: center; }
 .prog-pill b { display: block; font-family: var(--font-display); font-size: 1.3rem; color: var(--lime); }
 .prog-pill span { font-size: 0.7rem; color: var(--muted); }
+
+/* ---- calorie calculator ---- */
+.chip.active { background: linear-gradient(135deg, var(--lime), #a9e024); color: #0a0e05; border-color: var(--lime); }
+.seg-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.seg {
+  flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  border-radius: 12px; padding: 10px; font-family: var(--font-display); font-weight: 700;
+  transition: border-color 0.15s, background 0.15s;
+}
+.seg.active { background: linear-gradient(135deg, var(--lime), #a9e024); color: #0a0e05; border-color: var(--lime); }
+.calc-h { font-family: var(--font-display); font-size: 0.82rem; margin: 14px 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.calc-readout { text-align: center; background: rgba(0, 0, 0, 0.28); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin: 16px 0; }
+.calc-main { font-family: var(--font-display); font-weight: 800; font-size: 2.4rem; color: var(--lime); line-height: 1; margin-bottom: 6px; }
+
+/* ---- practical water ---- */
+.water-bar { height: 10px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin: 6px 0 12px; }
+.water-fill { height: 100%; background: linear-gradient(90deg, rgba(69, 214, 240, 0.7), var(--water)); border-radius: 999px; transition: width 0.35s var(--ease); box-shadow: 0 0 12px rgba(69, 214, 240, 0.5); }
+.water-chips { margin-bottom: 10px; }
+.water-custom { gap: 8px; }
+.water-custom input { margin-top: 0; }
+.water-custom .btn-ghost { padding: 11px 12px; }

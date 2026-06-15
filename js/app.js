@@ -77,6 +77,8 @@ const App = {
       if (p.waterTargetMl == null) p.waterTargetMl = Math.round(p.weightKg * 35);
       if (p.goalWeightKg == null) p.goalWeightKg = null;
       if (p.goalWeeks == null) p.goalWeeks = null;
+      if (p.goalType == null) p.goalType = "lose"; // migrate "aggressiveCut" → lose
+      if (p.ratePct == null) p.ratePct = null;
       if (p.fiberTargetG == null) p.fiberTargetG = Math.max(25, Math.round((p.calorieTarget / 1000) * 14));
       if (p.sodiumMaxMg == null) p.sodiumMaxMg = 2300;
     }
@@ -114,19 +116,37 @@ const App = {
         : 10 * kg + 6.25 * cm - 5 * age + 5;
     const tdee = bmr * (this.ACTIVITY_FACTORS[activityLevel] || 1.2);
     const floor = gender === "female" ? 1200 : 1500;
+    const goalType = profile.goalType || "lose";
 
-    // Deficit comes from the goal weight + chosen timeframe, else a default aggressive 750.
-    let requestedDeficit = 750;
-    if (profile.goalWeightKg && profile.goalWeeks && profile.goalWeightKg < kg) {
-      const weeklyKg = (kg - profile.goalWeightKg) / profile.goalWeeks;
+    // Resolve the calorie target per goal type.
+    let calorieTarget, appliedDeficit = 0, requestedDeficit = 0, surplus = 0, proteinPerKg = 2.0;
+    if (goalType === "maintain") {
+      calorieTarget = Math.round(tdee);
+      proteinPerKg = 1.8;
+    } else if (goalType === "gain") {
+      let weeklyKg;
+      if (profile.goalWeightKg && profile.goalWeeks && profile.goalWeightKg > kg) {
+        weeklyKg = (profile.goalWeightKg - kg) / profile.goalWeeks;
+      } else {
+        weeklyKg = kg * ((profile.ratePct || 0.25) / 100);
+      }
+      surplus = Math.min(Math.round((weeklyKg * this.KCAL_PER_KG_FAT) / 7), 500); // cap lean-gain surplus
+      calorieTarget = Math.round(tdee + surplus);
+    } else {
+      // lose
+      let weeklyKg;
+      if (profile.goalWeightKg && profile.goalWeeks && profile.goalWeightKg < kg) {
+        weeklyKg = (kg - profile.goalWeightKg) / profile.goalWeeks;
+      } else {
+        weeklyKg = kg * ((profile.ratePct || 0.75) / 100);
+      }
       requestedDeficit = Math.round((weeklyKg * this.KCAL_PER_KG_FAT) / 7);
+      const maxDeficit = Math.max(0, Math.round(tdee - floor));
+      appliedDeficit = Math.min(requestedDeficit, maxDeficit);
+      calorieTarget = Math.max(Math.round(tdee - appliedDeficit), floor);
     }
-    // Cap so the target never drops below the safe floor.
-    const maxDeficit = Math.max(0, Math.round(tdee - floor));
-    const appliedDeficit = Math.min(requestedDeficit, maxDeficit);
-    const calorieTarget = Math.max(Math.round(tdee - appliedDeficit), floor);
 
-    const proteinMinG = Math.round(2.0 * kg);
+    const proteinMinG = Math.round(proteinPerKg * kg);
     const sugarMaxG = 36;
     const fatTargetG = Math.round(0.8 * kg);
     const remaining = calorieTarget - proteinMinG * 4 - fatTargetG * 9;
@@ -138,8 +158,10 @@ const App = {
     return {
       bmr: Math.round(bmr),
       tdee: Math.round(tdee),
+      goalType,
       requestedDeficit,
       appliedDeficit,
+      surplus,
       calorieTarget,
       proteinMinG,
       sugarMaxG,
@@ -184,29 +206,33 @@ const App = {
     return totals.kcal <= target.calorieTarget && totals.protein >= target.proteinMinG;
   },
 
-  /* ---------- goal / weight-loss projection (timeframe-based) ---------- */
+  /* ---------- goal projection (timeframe-based, lose or gain) ---------- */
   goalProjection() {
     const p = this.state.profile;
-    if (!p || !p.goalWeightKg || p.goalWeightKg >= p.weightKg) return null;
-    const kgToLose = +(p.weightKg - p.goalWeightKg).toFixed(1);
+    if (!p || (p.goalType || "lose") === "maintain") return null;
+    const gaining = (p.goalType || "lose") === "gain";
+    if (!p.goalWeightKg) return null;
+    if (gaining && p.goalWeightKg <= p.weightKg) return null;
+    if (!gaining && p.goalWeightKg >= p.weightKg) return null;
 
-    // Deficit the plan actually applies (already floor-capped in computeTargets).
-    const appliedDeficit = p.tdee - p.calorieTarget;
-    const achievableWeeklyKg = (appliedDeficit * 7) / this.KCAL_PER_KG_FAT;
-    const achievableWeeks = achievableWeeklyKg > 0 ? Math.ceil(kgToLose / achievableWeeklyKg) : Infinity;
+    const kgToGo = +Math.abs(p.weightKg - p.goalWeightKg).toFixed(1);
+    // Calorie gap the plan actually applies (deficit for lose, surplus for gain).
+    const gap = Math.abs(p.calorieTarget - p.tdee);
+    const achievableWeeklyKg = (gap * 7) / this.KCAL_PER_KG_FAT;
+    const achievableWeeks = achievableWeeklyKg > 0 ? Math.ceil(kgToGo / achievableWeeklyKg) : Infinity;
 
-    // What the user asked for (their chosen timeframe), if any.
     const chosenWeeks = p.goalWeeks || achievableWeeks;
-    const requestedWeeklyKg = kgToLose / chosenWeeks;
-    const maxSafeWeeklyKg = p.weightKg * 0.01; // 1%/week ceiling
+    const requestedWeeklyKg = kgToGo / chosenWeeks;
+    const maxSafeWeeklyKg = p.weightKg * (gaining ? 0.005 : 0.01); // gain slower than loss
     const safe = requestedWeeklyKg <= maxSafeWeeklyKg + 0.001;
-    const floored = achievableWeeks > chosenWeeks + 0; // target hit the floor → slower than asked
+    const floored = achievableWeeks > chosenWeeks;
 
     const etaWeeks = Math.max(chosenWeeks, achievableWeeks === Infinity ? chosenWeeks : achievableWeeks);
     const target = this.addDays(new Date(), etaWeeks * 7);
 
     return {
-      kgToLose,
+      gaining,
+      kgToGo,
       chosenWeeks,
       etaWeeks,
       requestedWeeklyKg: +requestedWeeklyKg.toFixed(2),
@@ -214,7 +240,7 @@ const App = {
       maxSafeWeeklyKg: +maxSafeWeeklyKg.toFixed(2),
       safe,
       floored,
-      appliedDeficit,
+      gap,
       target,
     };
   },
@@ -340,8 +366,8 @@ const App = {
   updateWaterUI() {
     const ml = this.state.active.waterMl;
     const targetMl = this.state.profile?.waterTargetMl || 3000;
-    const filled = Math.floor(ml / 250);
-    document.querySelectorAll("#cups .cup").forEach((c, i) => c.classList.toggle("filled", i < filled));
+    const fill = document.getElementById("water-fill");
+    if (fill) fill.style.width = `${Math.min(100, (ml / targetMl) * 100).toFixed(1)}%`;
     const label = document.getElementById("water-amount");
     if (label) label.textContent = `${(ml / 1000).toFixed(2)} / ${(targetMl / 1000).toFixed(2)} L`;
     const wrap = document.querySelector('.ring-wrap[data-ring="water"]');
@@ -352,6 +378,13 @@ const App = {
       wrap.querySelector(".ring-fg").style.setProperty("--off", off.toFixed(2));
       wrap.querySelector(".ring-val").textContent = `${(ml / 1000).toFixed(1)}L`;
     }
+  },
+
+  addWater(ml) {
+    const before = this.state.active.waterMl;
+    const target = this.state.profile?.waterTargetMl || 3000;
+    this.setWaterMl(before + ml);
+    if (ml > 0 && this.state.active.waterMl >= target && before < target) this.celebrate("💧 Hydration goal hit!");
   },
 
   setSteps(steps) {
@@ -368,7 +401,7 @@ const App = {
     root.innerHTML = `
       <div class="card onboard">
         <h2>${isEdit ? "Edit Profile" : "Welcome to StreakFit"}</h2>
-        <p class="muted">${isEdit ? "Update your metrics — targets recalculate automatically." : "Enter your metrics to compute your Aggressive Cut targets."}</p>
+        <p class="muted">${isEdit ? "Update your metrics — targets recalculate automatically." : "Enter your metrics to compute your personalized targets."}</p>
         <form id="profile-form">
           <div class="grid-2">
             <label>Weight (kg)<input name="weightKg" type="number" step="0.1" required value="${p.weightKg ?? ""}"></label>
@@ -402,7 +435,14 @@ const App = {
               <option value="veryActive" ${sel(p.activityLevel, "veryActive")}>Very Active (physical job)</option>
             </select>
           </label>
-          <label>Goal<input value="Aggressive Cut" disabled></label>
+          <label>Goal
+            <select name="goalType">
+              <option value="lose" ${sel(p.goalType || "lose", "lose")}>Lose fat</option>
+              <option value="maintain" ${sel(p.goalType, "maintain")}>Maintain</option>
+              <option value="gain" ${sel(p.goalType, "gain")}>Lean bulk / gain</option>
+            </select>
+          </label>
+          <p class="muted small">Fine-tune your pace and calories anytime with the ⚖️ calculator on the dashboard.</p>
           ${
             isEdit
               ? `<details class="advanced"><summary>Advanced: override targets</summary>
@@ -434,7 +474,8 @@ const App = {
         age: +fd.get("age"),
         gender: fd.get("gender"),
         activityLevel: fd.get("activityLevel"),
-        goal: "aggressiveCut",
+        goalType: fd.get("goalType") || "lose",
+        ratePct: this.state.profile?.ratePct ?? null,
       };
       const auto = this.computeTargets(base);
       const overrideOr = (key) => {
@@ -528,9 +569,11 @@ const App = {
     const proColor = t.protein >= p.proteinMinG ? "var(--good)" : "var(--warn)";
     const sugColor = t.sugar > p.sugarMaxG ? "var(--danger)" : "var(--good)";
 
+    const gt = p.goalType || "lose";
+    const leftWord = gt === "maintain" ? "to maintenance" : gt === "gain" ? "to your target" : "until your max";
     const verdicts = [];
-    if (remaining >= 0) verdicts.push(`<li class="v-good">✅ ${remaining} kcal until your max</li>`);
-    else verdicts.push(`<li class="v-bad">🚫 ${Math.abs(remaining)} kcal over your max</li>`);
+    if (remaining >= 0) verdicts.push(`<li class="v-good">✅ ${remaining} kcal ${leftWord}</li>`);
+    else verdicts.push(`<li class="v-bad">🚫 ${Math.abs(remaining)} kcal over ${gt === "gain" ? "target" : "your max"}</li>`);
     if (t.protein >= p.proteinMinG)
       verdicts.push(`<li class="v-good">✅ Protein goal met (${Math.round(t.protein)}/${p.proteinMinG} g)</li>`);
     else
@@ -540,33 +583,40 @@ const App = {
     else
       verdicts.push(`<li class="v-bad">🚫 Sugar over by ${Math.round(t.sugar - p.sugarMaxG)} g</li>`);
 
+    const goalType = p.goalType || "lose";
     const gp = this.goalProjection();
+    const goalLabel = { lose: "Lose fat", maintain: "Maintain", gain: "Lean bulk" }[goalType];
     let goalCard;
-    if (gp) {
+    if (goalType === "maintain") {
+      goalCard = `<div class="card goal-card">
+           <h3>🎯 ${goalLabel}</h3>
+           <div class="goal-big">${p.calorieTarget} <span class="muted">kcal/day</span></div>
+           <div class="muted small">Eating at maintenance (TDEE ${p.tdee})</div>
+           <button id="adjust-goal" class="btn-ghost">Adjust goal</button>
+         </div>`;
+    } else if (gp) {
       const warn = !gp.safe
-        ? `<div class="goal-warn">⚠️ That pace (${gp.requestedWeeklyKg} kg/wk) is faster than the safe max of ${gp.maxSafeWeeklyKg} kg/wk — I floored your calories safely, so realistic finish is shown below.</div>`
+        ? `<div class="goal-warn">⚠️ That pace (${gp.requestedWeeklyKg} kg/wk) is faster than the safe max of ${gp.maxSafeWeeklyKg} kg/wk — calories are capped safely, so realistic finish is shown below.</div>`
         : gp.floored
-        ? `<div class="goal-warn">ℹ️ Calories floored at the safe minimum, so the realistic finish is a bit later than your chosen date.</div>`
+        ? `<div class="goal-warn">ℹ️ Calories capped at the safe limit, so the realistic finish is a bit later than your chosen date.</div>`
         : "";
       goalCard = `<div class="card goal-card">
-           <h3>🎯 Goal</h3>
-           <div class="goal-big">${gp.kgToLose} kg <span class="muted">to go</span></div>
+           <h3>🎯 ${goalLabel}</h3>
+           <div class="goal-big">${gp.kgToGo} kg <span class="muted">${gp.gaining ? "to gain" : "to go"}</span></div>
            <div class="goal-line">~${gp.etaWeeks} weeks → <strong>${this.prettyDate(gp.target)}</strong></div>
-           <div class="muted small">~${gp.achievableWeeklyKg} kg/wk · deficit ${gp.appliedDeficit} kcal/day${gp.chosenWeeks ? ` · target ${gp.chosenWeeks} wk` : ""}</div>
+           <div class="muted small">~${gp.achievableWeeklyKg} kg/wk · ${gp.gaining ? "surplus" : "deficit"} ${gp.gap} kcal/day${gp.chosenWeeks ? ` · target ${gp.chosenWeeks} wk` : ""}</div>
            ${warn}
+           <button id="adjust-goal" class="btn-ghost">Adjust goal</button>
          </div>`;
     } else {
       goalCard = `<div class="card goal-card muted-card">
-           <h3>🎯 Goal</h3>
-           <p class="muted small">Set a goal weight + timeframe in your profile to see your projected finish date.</p>
-           <button id="set-goal" class="btn-ghost">Set a goal</button>
+           <h3>🎯 ${goalLabel}</h3>
+           <p class="muted small">Open the calculator to set your pace, target weight + timeframe, or a custom calorie target.</p>
+           <button id="adjust-goal" class="btn-ghost">Open calorie calculator</button>
          </div>`;
     }
 
     const targetMl = p.waterTargetMl;
-    const cupsCount = Math.max(1, Math.round(targetMl / 250));
-    const filledCups = Math.floor(this.state.active.waterMl / 250);
-
     const badges = this.computeBadges();
 
     root.innerHTML = `
@@ -601,12 +651,17 @@ const App = {
 
       <div class="card">
         <div class="wk-head"><h3>💧 Water</h3><span id="water-amount" class="water-amount">${(this.state.active.waterMl / 1000).toFixed(2)} / ${(targetMl / 1000).toFixed(2)} L</span></div>
-        <div class="cups" id="cups">
-          ${Array.from({ length: cupsCount }, (_, i) => `<button class="cup ${i < filledCups ? "filled" : ""}" data-i="${i}">💧</button>`).join("")}
+        <div class="water-bar"><div id="water-fill" class="water-fill" style="width:${Math.min(100, (this.state.active.waterMl / targetMl) * 100).toFixed(1)}%"></div></div>
+        <div class="chip-row water-chips">
+          <button class="chip water-add" data-ml="250">+250</button>
+          <button class="chip water-add" data-ml="330">+330</button>
+          <button class="chip water-add" data-ml="500">+500</button>
         </div>
-        <div class="btn-row">
-          <button id="water-minus" class="btn-ghost">− 250 ml</button>
-          <button id="water-plus" class="btn-ghost">+ 250 ml</button>
+        <div class="search-row water-custom">
+          <input id="water-custom" type="number" min="1" placeholder="custom ml (e.g. 200)">
+          <button id="water-add-custom" class="btn-ghost" style="width:auto">Add</button>
+          <button id="water-minus" class="btn-ghost" style="width:auto">−250</button>
+          <button id="water-reset" class="btn-ghost" style="width:auto">Reset</button>
         </div>
       </div>
 
@@ -628,25 +683,19 @@ const App = {
 
     document.getElementById("edit-profile").addEventListener("click", () => this.renderProfileForm(true));
     document.getElementById("open-progress").addEventListener("click", () => this.renderProgress());
-    const setGoalBtn = document.getElementById("set-goal");
-    if (setGoalBtn) setGoalBtn.addEventListener("click", () => this.renderProfileForm(true));
+    document.getElementById("adjust-goal").addEventListener("click", () => this.renderCalculator());
 
-    // water cups
-    document.getElementById("cups").addEventListener("click", (e) => {
-      const btn = e.target.closest(".cup");
-      if (!btn) return;
-      const i = +btn.dataset.i;
-      const curCups = Math.floor(this.state.active.waterMl / 250);
-      const nextCups = curCups === i + 1 ? i : i + 1;
-      btn.classList.remove("pop");
-      void btn.offsetWidth;
-      btn.classList.add("pop");
-      const before = this.state.active.waterMl;
-      this.setWaterMl(nextCups * 250);
-      if (this.state.active.waterMl >= p.waterTargetMl && before < p.waterTargetMl) this.celebrate("💧 Hydration goal hit!");
+    // water controls
+    document.querySelectorAll(".water-add").forEach((b) =>
+      b.addEventListener("click", () => this.addWater(+b.dataset.ml))
+    );
+    document.getElementById("water-add-custom").addEventListener("click", () => {
+      const el = document.getElementById("water-custom");
+      const v = +el.value;
+      if (v > 0) { this.addWater(v); el.value = ""; }
     });
-    document.getElementById("water-plus").addEventListener("click", () => this.setWaterMl(this.state.active.waterMl + 250));
     document.getElementById("water-minus").addEventListener("click", () => this.setWaterMl(this.state.active.waterMl - 250));
+    document.getElementById("water-reset").addEventListener("click", () => this.setWaterMl(0));
 
     const stepsEl = document.getElementById("steps-input");
     stepsEl.addEventListener("change", (e) => this.setSteps(e.target.value));
@@ -730,6 +779,139 @@ const App = {
       modal.remove();
       this.renderDashboard();
     });
+  },
+
+  /* ---------- calorie / deficit calculator ---------- */
+  PACE: {
+    lose: [{ label: "Mild", pct: 0.25 }, { label: "Moderate", pct: 0.5 }, { label: "Aggressive", pct: 0.75 }],
+    gain: [{ label: "Lean", pct: 0.125 }, { label: "Moderate", pct: 0.25 }, { label: "Fast", pct: 0.5 }],
+  },
+
+  renderCalculator() {
+    const p = this.state.profile;
+    const w = {
+      goalType: p.goalType || "lose",
+      ratePct: p.ratePct || null,
+      goalWeightKg: p.goalWeightKg || null,
+      goalWeeks: p.goalWeeks || null,
+      manualKcal: null,
+    };
+
+    const preview = () => {
+      const temp = { ...p, goalType: w.goalType, ratePct: w.ratePct, goalWeightKg: w.goalWeightKg, goalWeeks: w.goalWeeks };
+      const t = this.computeTargets(temp);
+      let target = t.calorieTarget;
+      if (w.goalType !== "maintain" && w.manualKcal) target = w.manualKcal;
+      const gap = target - t.tdee; // <0 deficit, >0 surplus
+      const weeklyKg = (Math.abs(gap) * 7) / this.KCAL_PER_KG_FAT;
+      let eta = null;
+      if (w.goalType !== "maintain" && w.goalWeightKg && weeklyKg > 0) {
+        const losing = w.goalType === "lose";
+        const ok = losing ? w.goalWeightKg < p.weightKg : w.goalWeightKg > p.weightKg;
+        if (ok) {
+          const weeks = Math.ceil(Math.abs(p.weightKg - w.goalWeightKg) / weeklyKg);
+          eta = { weeks, date: this.prettyDate(this.addDays(new Date(), weeks * 7)) };
+        }
+      }
+      const maxSafe = p.weightKg * (w.goalType === "gain" ? 0.005 : 0.01);
+      const safe = w.goalType === "maintain" || weeklyKg <= maxSafe + 0.001;
+      return { tdee: t.tdee, target, gap, weeklyKg: +weeklyKg.toFixed(2), eta, safe };
+    };
+
+    const modal = document.createElement("div");
+    modal.id = "calc-modal";
+    const gtBtns = ["lose", "maintain", "gain"].map((g) =>
+      `<button class="seg ${w.goalType === g ? "active" : ""}" data-gt="${g}">${{ lose: "Lose", maintain: "Maintain", gain: "Gain" }[g]}</button>`
+    ).join("");
+    modal.innerHTML = `
+      <div class="ex-modal-card">
+        <button class="ex-close" aria-label="close">✕</button>
+        <h3 class="ex-title">⚖️ Calorie Calculator</h3>
+        <div class="seg-row">${gtBtns}</div>
+        <div id="calc-controls"></div>
+        <div id="calc-readout" class="calc-readout"></div>
+        <button id="calc-save" class="btn-primary">Save</button>
+      </div>`;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add("open"));
+
+    const controls = modal.querySelector("#calc-controls");
+    const readoutEl = modal.querySelector("#calc-readout");
+
+    const renderControls = () => {
+      if (w.goalType === "maintain") { controls.innerHTML = `<p class="muted small">Eat at maintenance — no deficit or surplus.</p>`; return; }
+      const paces = this.PACE[w.goalType];
+      const verb = w.goalType === "lose" ? "lose" : "gain";
+      controls.innerHTML = `
+        <h4 class="calc-h">Pace</h4>
+        <div class="chip-row">${paces.map((pc) => `<button class="chip pace-btn ${w.ratePct === pc.pct ? "active" : ""}" data-pct="${pc.pct}">${pc.label} (${pc.pct}%/wk)</button>`).join("")}</div>
+        <h4 class="calc-h">…or by target</h4>
+        <div class="grid-2">
+          <label>Goal weight (kg)<input id="calc-gw" type="number" step="0.1" value="${w.goalWeightKg ?? ""}"></label>
+          <label>Timeframe
+            <select id="calc-weeks">
+              <option value="">—</option>
+              ${[["4", "1 month"], ["6", "6 weeks"], ["8", "2 months"], ["12", "3 months"], ["16", "4 months"], ["26", "6 months"]].map(([v, l]) => `<option value="${v}" ${String(w.goalWeeks) === v ? "selected" : ""}>${l}</option>`).join("")}
+            </select>
+          </label>
+        </div>
+        <h4 class="calc-h">…or set calories directly</h4>
+        <label>Target calories/day<input id="calc-manual" type="number" placeholder="e.g. 1900" value="${w.manualKcal ?? ""}"></label>`;
+      bindControls();
+    };
+
+    const updateReadout = () => {
+      const r = preview();
+      const gapTxt = w.goalType === "maintain" || Math.abs(r.gap) < 5
+        ? "at maintenance"
+        : r.gap < 0 ? `${Math.abs(r.gap)} kcal deficit/day` : `+${r.gap} kcal surplus/day`;
+      readoutEl.innerHTML = `
+        <div class="calc-main">${r.target} <span class="muted">kcal/day</span></div>
+        <div class="muted small">TDEE ${r.tdee} · ${gapTxt}</div>
+        ${w.goalType !== "maintain" ? `<div class="muted small">~${r.weeklyKg} kg/wk${r.eta ? ` · ${r.eta.weeks} wk → ${r.eta.date}` : ""}</div>` : ""}
+        ${!r.safe ? `<div class="goal-warn">⚠️ Faster than the safe limit — calories may be capped on save.</div>` : ""}`;
+    };
+
+    const bindControls = () => {
+      controls.querySelectorAll(".pace-btn").forEach((b) => b.addEventListener("click", () => {
+        w.ratePct = +b.dataset.pct; w.goalWeeks = null; w.manualKcal = null;
+        renderControls(); updateReadout();
+      }));
+      const gw = controls.querySelector("#calc-gw"), wk = controls.querySelector("#calc-weeks"), mn = controls.querySelector("#calc-manual");
+      if (gw) gw.addEventListener("input", () => { w.goalWeightKg = +gw.value || null; w.manualKcal = null; updateReadout(); });
+      if (wk) wk.addEventListener("change", () => { w.goalWeeks = +wk.value || null; w.ratePct = null; w.manualKcal = null; updateReadout(); });
+      if (mn) mn.addEventListener("input", () => { w.manualKcal = +mn.value || null; updateReadout(); });
+    };
+
+    modal.querySelectorAll(".seg").forEach((b) => b.addEventListener("click", () => {
+      w.goalType = b.dataset.gt;
+      modal.querySelectorAll(".seg").forEach((x) => x.classList.toggle("active", x === b));
+      renderControls(); updateReadout();
+    }));
+    modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest(".ex-close")) modal.remove(); });
+    modal.querySelector("#calc-save").addEventListener("click", () => {
+      p.goalType = w.goalType;
+      p.ratePct = w.ratePct;
+      p.goalWeightKg = w.goalWeightKg;
+      p.goalWeeks = w.goalWeeks;
+      const t = this.computeTargets(p);
+      Object.assign(p, {
+        bmr: t.bmr, tdee: t.tdee, calorieTarget: t.calorieTarget, proteinMinG: t.proteinMinG,
+        sugarMaxG: t.sugarMaxG, carbTargetG: t.carbTargetG, fatTargetG: t.fatTargetG,
+        fiberTargetG: t.fiberTargetG, sodiumMaxMg: t.sodiumMaxMg, waterTargetMl: t.waterTargetMl,
+      });
+      if (w.goalType !== "maintain" && w.manualKcal) {
+        p.calorieTarget = w.manualKcal;
+        p.carbTargetG = Math.max(Math.round((p.calorieTarget - p.proteinMinG * 4 - p.fatTargetG * 9) / 4), 0);
+      }
+      this.save();
+      modal.remove();
+      this.celebrateMini("Goal updated ✓");
+      this.renderDashboard();
+    });
+
+    renderControls();
+    updateReadout();
   },
 
   /* ---------- celebration ---------- */

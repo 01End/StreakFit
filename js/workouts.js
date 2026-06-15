@@ -28,8 +28,10 @@ function recalcExerciseBurn() {
   App.save();
 }
 
-function loadBuiltinDay(dayIndex) {
-  const day = BUILTIN_PLAN.days[dayIndex];
+let _selectedPlan = 0; // index into BUILTIN_PLANS
+
+function loadPlanDay(planIndex, dayIndex) {
+  const day = BUILTIN_PLANS[planIndex].days[dayIndex];
   App.state.active.workout = day.exercises.map((e) => {
     const ex = getExercise(e.key);
     return {
@@ -49,15 +51,32 @@ function loadBuiltinDay(dayIndex) {
   renderWorkoutsTab();
 }
 
+// Pull JSON out of whatever Claude pasted: strip ``` fences/prose, take the first
+// balanced { … } or [ … ] block.
+function extractPlanJSON(raw) {
+  let s = (raw || "").trim();
+  s = s.replace(/^```[a-zA-Z]*\s*/, "").replace(/```\s*$/, "").trim();
+  const start = s.search(/[\[{]/);
+  if (start > 0) s = s.slice(start);
+  const lastObj = s.lastIndexOf("}");
+  const lastArr = s.lastIndexOf("]");
+  const end = Math.max(lastObj, lastArr);
+  if (end >= 0) s = s.slice(0, end + 1);
+  return s;
+}
+
 function importWorkoutPlan(raw) {
   let data;
   try {
-    data = JSON.parse(raw);
+    data = JSON.parse(extractPlanJSON(raw));
   } catch (e) {
-    throw new Error("That's not valid JSON. Paste the full { … } block.");
+    throw new Error("Couldn't read that. Paste the workout JSON (a { … } block or an exercises array).");
   }
+  // Accept a bare array of exercises, or { title, exercises }, or { days:[{exercises}] }.
+  if (Array.isArray(data)) data = { exercises: data };
+  if (!data.exercises && Array.isArray(data.days) && data.days[0]) data = { title: data.days[0].title, exercises: data.days[0].exercises };
   if (!data || !Array.isArray(data.exercises) || data.exercises.length === 0) {
-    throw new Error('JSON must have an "exercises" array.');
+    throw new Error('Need an "exercises" array (e.g. {"title":"Push","exercises":[{"name":"Push-ups","sets":3,"reps":12}]}).');
   }
   App.state.active.workout = data.exercises.map((ex) => {
     // Try to enrich a pasted exercise with a known animation/cues by name.
@@ -159,7 +178,11 @@ function renderWorkoutsTab() {
   const totalBurn = App.state.active.exerciseBurn || 0;
   const allDone = w.length > 0 && w.every((e) => e.done);
 
-  const dayBtns = BUILTIN_PLAN.days
+  const plan = BUILTIN_PLANS[_selectedPlan] || BUILTIN_PLANS[0];
+  const planChips = BUILTIN_PLANS
+    .map((pl, i) => `<button class="chip plan-chip ${i === _selectedPlan ? "active" : ""}" data-plan="${i}">${pl.name}</button>`)
+    .join("");
+  const dayBtns = plan.days
     .map((d, i) => `<button class="day-btn" data-day="${i}">${d.title.split(" — ")[0]}<span>${d.title.split(" — ")[1] || ""}</span></button>`)
     .join("");
 
@@ -167,8 +190,9 @@ function renderWorkoutsTab() {
     <h2>Workouts</h2>
 
     <div class="card plan-card">
-      <h3>🏋️ ${BUILTIN_PLAN.name}</h3>
-      <p class="muted small">${BUILTIN_PLAN.subtitle}</p>
+      <h3>🏋️ Choose a plan</h3>
+      <div class="chip-row plan-chips">${planChips}</div>
+      <p class="muted small">${plan.subtitle}</p>
       <div class="day-grid">${dayBtns}</div>
     </div>
 
@@ -210,9 +234,13 @@ function renderWorkoutsTab() {
       ${allDone ? `<p class="all-done">✅ Workout complete — ${totalBurn} kcal credited to your day!</p>` : ""}
     </div>`;
 
+  root.querySelector(".plan-chips").addEventListener("click", (e) => {
+    const b = e.target.closest(".plan-chip");
+    if (b) { _selectedPlan = +b.dataset.plan; renderWorkoutsTab(); }
+  });
   root.querySelector(".day-grid").addEventListener("click", (e) => {
     const btn = e.target.closest(".day-btn");
-    if (btn) loadBuiltinDay(+btn.dataset.day);
+    if (btn) loadPlanDay(_selectedPlan, +btn.dataset.day);
   });
 
   document.getElementById("import-plan").addEventListener("click", () => {

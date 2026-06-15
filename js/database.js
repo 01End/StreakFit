@@ -16,6 +16,32 @@ function searchFoods(query) {
   return matches.slice(0, 25);
 }
 
+// Online search via Open Food Facts → per-100g food objects (same shape as FOODS).
+async function searchFoodsOnline(query) {
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=20&fields=product_name,brands,nutriments,serving_size`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Search failed");
+  const data = await res.json();
+  return (data.products || [])
+    .map((p) => {
+      const n = p.nutriments || {};
+      const name = [p.brands, p.product_name].filter(Boolean).join(" ").trim();
+      if (!name || !n["energy-kcal_100g"]) return null;
+      return {
+        name,
+        kcal: Math.round(n["energy-kcal_100g"] || 0),
+        protein: +(n.proteins_100g || 0).toFixed(1),
+        carbs: +(n.carbohydrates_100g || 0).toFixed(1),
+        fats: +(n.fat_100g || 0).toFixed(1),
+        sugar: +(n.sugars_100g || 0).toFixed(1),
+        fiber: +(n.fiber_100g || 0).toFixed(1),
+        sodium: Math.round((n.sodium_100g || 0) * 1000),
+        serving: p.serving_size ? { label: p.serving_size, g: parseFloat(p.serving_size) || 100 } : { label: "100 g", g: 100 },
+      };
+    })
+    .filter(Boolean);
+}
+
 // Scale a per-100g food to `grams`.
 function scaleMacros(food, grams) {
   const f = (+grams || 0) / 100;
@@ -153,6 +179,8 @@ function renderLogTab() {
         <button id="scan-btn" class="btn-scan" title="Scan barcode">📷</button>
       </div>
       <ul id="search-results" class="results"></ul>
+      <button id="online-search" class="btn-ghost" style="display:none">🔎 Search Open Food Facts (online)</button>
+      <ul id="online-results" class="results"></ul>
       <p class="muted small">Tap a food → enter grams → macros calculate automatically.</p>
     </div>
 
@@ -212,7 +240,13 @@ function renderLogTab() {
   // ---- main search ----
   const searchEl = document.getElementById("food-search");
   const resultsEl = document.getElementById("search-results");
+  const onlineBtn = document.getElementById("online-search");
+  const onlineEl = document.getElementById("online-results");
   searchEl.addEventListener("input", () => {
+    const q = searchEl.value.trim();
+    onlineBtn.style.display = q ? "block" : "none";
+    onlineBtn.textContent = "🔎 Search Open Food Facts (online)";
+    onlineEl.innerHTML = "";
     const results = searchFoods(searchEl.value);
     resultsEl.innerHTML = results.length
       ? results
@@ -233,6 +267,37 @@ function renderLogTab() {
     const li = e.target.closest(".result");
     if (!li) return;
     const food = resultsEl._results[+li.dataset.idx];
+    if (food) openFoodDetail(food);
+  });
+
+  onlineBtn.addEventListener("click", async () => {
+    const q = searchEl.value.trim();
+    if (!q) return;
+    onlineBtn.textContent = "Searching…";
+    try {
+      const results = await searchFoodsOnline(q);
+      onlineEl._results = results;
+      onlineEl.innerHTML = results.length
+        ? results
+            .map(
+              (f, idx) =>
+                `<li class="result" data-idx="${idx}">
+                   <div><strong>${f.name}</strong> <em class="tag">web</em></div>
+                   <span class="muted">${Math.round(f.kcal)} kcal/100g</span>
+                 </li>`
+            )
+            .join("")
+        : `<li class="muted">No online matches.</li>`;
+      onlineBtn.textContent = "🔎 Search again";
+    } catch (err) {
+      onlineEl.innerHTML = `<li class="muted">Online search needs internet. Use the local list or Quick Add.</li>`;
+      onlineBtn.textContent = "🔎 Retry";
+    }
+  });
+  onlineEl.addEventListener("click", (e) => {
+    const li = e.target.closest(".result");
+    if (!li || !onlineEl._results) return;
+    const food = onlineEl._results[+li.dataset.idx];
     if (food) openFoodDetail(food);
   });
 
