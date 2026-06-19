@@ -56,9 +56,39 @@ function scaleMacros(food, grams) {
   };
 }
 
+// per-100g snapshot used by recents/favorites
+function per100Snapshot(food) {
+  return { name: food.name, kcal: food.kcal, protein: food.protein, carbs: food.carbs, fats: food.fats,
+    sugar: food.sugar, fiber: food.fiber, sodium: food.sodium, serving: food.serving || { label: "100 g", g: 100 } };
+}
+function recordRecent(food) {
+  if (!food || !food.name) return;
+  const r = (App.state.recentFoods || []).filter((f) => f.name.toLowerCase() !== food.name.toLowerCase());
+  r.unshift(per100Snapshot(food));
+  App.state.recentFoods = r.slice(0, 15);
+}
+function isFavorite(name) {
+  return (App.state.favoriteFoods || []).some((f) => f.name.toLowerCase() === name.toLowerCase());
+}
+function toggleFavorite(food) {
+  const favs = App.state.favoriteFoods || (App.state.favoriteFoods = []);
+  const i = favs.findIndex((f) => f.name.toLowerCase() === food.name.toLowerCase());
+  if (i >= 0) favs.splice(i, 1); else favs.unshift(per100Snapshot(food));
+  App.save();
+}
+// build a per-100g food from a logged entry (which stores totals + grams)
+function per100FromEntry(entry) {
+  const g = entry.grams || 100, f = 100 / g;
+  return { name: entry.name, kcal: entry.kcal * f, protein: entry.protein * f, carbs: entry.carbs * f,
+    fats: entry.fats * f, sugar: entry.sugar * f, fiber: (entry.fiber || 0) * f, sodium: (entry.sodium || 0) * f,
+    serving: { label: `${g} g`, g } };
+}
+
 function addScaledFood(food, grams) {
   const m = scaleMacros(food, grams);
   App.state.active.foods.push({ name: food.name, grams: +grams, ...m });
+  recordRecent(food);
+  if (window.Gamify) Gamify.onFood();
   App.save();
 }
 
@@ -182,7 +212,8 @@ function renderLogTab() {
       <ul id="search-results" class="results"></ul>
       <button id="online-search" class="btn-ghost" style="display:none">🔎 Search Open Food Facts (online)</button>
       <ul id="online-results" class="results"></ul>
-      <p class="muted small">Tap a food → enter grams → macros calculate automatically.</p>
+      <p class="muted small">Tap a food → enter grams → it calculates automatically.</p>
+      <div id="quick-foods" class="quick-foods"></div>
     </div>
 
     <details class="card">
@@ -229,6 +260,7 @@ function renderLogTab() {
                     `<li>
                        <span class="log-name">${f.name}<span class="muted small log-serving">${f.grams ? f.grams + " g" : ""}</span></span>
                        <span class="muted">${Math.round(f.kcal)} kcal</span>
+                       <button class="fav-star ${isFavorite(f.name) ? "on" : ""}" data-i="${i}" title="Favorite">${isFavorite(f.name) ? "★" : "☆"}</button>
                        <button class="del" data-i="${i}">✕</button>
                      </li>`
                 )
@@ -243,11 +275,14 @@ function renderLogTab() {
   const resultsEl = document.getElementById("search-results");
   const onlineBtn = document.getElementById("online-search");
   const onlineEl = document.getElementById("online-results");
+  const quickFoods = document.getElementById("quick-foods");
+  renderQuickFoods();
   searchEl.addEventListener("input", () => {
     const q = searchEl.value.trim();
     onlineBtn.style.display = q ? "block" : "none";
     onlineBtn.textContent = "🔎 Search Open Food Facts (online)";
     onlineEl.innerHTML = "";
+    if (quickFoods) quickFoods.style.display = q ? "none" : "block";
     const results = searchFoods(searchEl.value);
     resultsEl.innerHTML = results.length
       ? results
@@ -356,18 +391,48 @@ function renderLogTab() {
       });
       const known = [...FOODS, ...App.state.customFoods].some((f) => f.name.toLowerCase() === totals.name.toLowerCase());
       if (!known) App.state.customFoods.push(per100);
+      recordRecent(per100);
     }
+    if (window.Gamify) Gamify.onFood();
     App.save();
     renderLogTab();
   });
 
   root.querySelector(".logged").addEventListener("click", (e) => {
-    const btn = e.target.closest(".del");
-    if (btn) removeFoodFromToday(+btn.dataset.i);
+    const del = e.target.closest(".del");
+    if (del) { removeFoodFromToday(+del.dataset.i); return; }
+    const star = e.target.closest(".fav-star");
+    if (star) { toggleFavorite(per100FromEntry(App.state.active.foods[+star.dataset.i])); renderLogTab(); }
+  });
+
+  // ---- quick foods (recents + favorites, one-tap re-log) ----
+  if (quickFoods) quickFoods.addEventListener("click", (e) => {
+    const chip = e.target.closest(".qf-chip");
+    if (!chip) return;
+    const list = chip.dataset.kind === "fav" ? App.state.favoriteFoods : App.state.recentFoods;
+    const food = (list || [])[+chip.dataset.i];
+    if (food) openFoodDetail(food);
   });
 
   document.getElementById("scan-btn").addEventListener("click", () => initBarcodeScanner());
   document.getElementById("snap-meal").addEventListener("click", () => openPhotoLog());
+}
+
+function renderQuickFoods() {
+  const host = document.getElementById("quick-foods");
+  if (!host) return;
+  const favs = App.state.favoriteFoods || [];
+  const recents = App.state.recentFoods || [];
+  let html = "";
+  if (favs.length)
+    html += `<div class="qf-label">★ Favorites</div><div class="qf-chips">` +
+      favs.map((f, i) => `<button class="qf-chip" data-kind="fav" data-i="${i}">${f.name}</button>`).join("") + `</div>`;
+  if (recents.length)
+    html += `<div class="qf-label">🕘 Recent</div><div class="qf-chips">` +
+      recents.map((f, i) => `<button class="qf-chip" data-kind="rec" data-i="${i}">${f.name}</button>`).join("") + `</div>`;
+  if (!html)
+    html = `<p class="muted small">Log a food, snap a photo, or scan a barcode to begin — your recent & favorite foods will appear here for one-tap re-logging.</p>`;
+  host.innerHTML = html;
 }
 
 function renderRecipeDraft() {

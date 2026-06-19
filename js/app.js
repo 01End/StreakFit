@@ -66,7 +66,12 @@ const App = {
     if (!s.customFoods) s.customFoods = [];
     if (!s.weights) s.weights = [];
     if (!s.settings) s.settings = {};
-    if (!s.settings.visionModel) s.settings.visionModel = "meta-llama/llama-4-maverick:free";
+    // migrate the now-dead default model id → a currently-valid free vision model
+    if (!s.settings.visionModel || s.settings.visionModel === "meta-llama/llama-4-maverick:free")
+      s.settings.visionModel = "google/gemma-4-31b-it:free";
+    if (!s.recentFoods) s.recentFoods = [];
+    if (!s.favoriteFoods) s.favoriteFoods = [];
+    if (!s.gamify) s.gamify = { xp: 0, achievements: {}, quests: null };
     if (typeof s.streak !== "number") s.streak = 0;
     // migrate old 8-glass water → ml (250 ml per glass)
     if (s.active.waterMl == null) s.active.waterMl = (s.active.water || 0) * 250;
@@ -266,6 +271,7 @@ const App = {
       fiberTargetG: t.fiberTargetG, waterTargetMl: t.waterTargetMl,
     });
     this.save();
+    if (window.Gamify) Gamify.onWeighIn();
   },
 
   // Estimate real TDEE from weight trend vs logged intake over the recent window.
@@ -352,6 +358,7 @@ const App = {
       });
       if (this.state.history.length > 365) this.state.history.shift();
       this.state.streak = met ? this.state.streak + 1 : 0;
+      if (met && window.Gamify) Gamify.onStreakDay();
     }
 
     this.state.active = this.blankActive(today);
@@ -633,6 +640,7 @@ const App = {
     }
 
     const targetMl = p.waterTargetMl;
+    if (window.Gamify) Gamify.checkDaily(t); // award daily XP + unlock achievements before rendering counts
     const badges = this.computeBadges();
 
     root.innerHTML = `
@@ -660,6 +668,8 @@ const App = {
       </div>
 
       ${badges.some((b) => b.earned) ? `<div class="badges">${badges.filter((b) => b.earned).map((b) => `<span class="badge" title="${b.name}">${b.icon}</span>`).join("")}</div>` : ""}
+
+      ${window.Gamify ? Gamify.dashboardHTML() : ""}
 
       <ul class="verdicts">${verdicts.join("")}</ul>
 
@@ -700,6 +710,7 @@ const App = {
     document.getElementById("edit-profile").addEventListener("click", () => this.renderProfileForm(true));
     document.getElementById("open-progress").addEventListener("click", () => this.renderProgress());
     document.getElementById("adjust-goal").addEventListener("click", () => this.renderCalculator());
+    if (window.Gamify) Gamify.bindDashboard();
 
     // water controls
     document.querySelectorAll(".water-add").forEach((b) =>
@@ -715,6 +726,26 @@ const App = {
 
     const stepsEl = document.getElementById("steps-input");
     stepsEl.addEventListener("change", (e) => this.setSteps(e.target.value));
+  },
+
+  /* ---------- "you've come this far" recap ---------- */
+  journeyHTML() {
+    const ws = (this.state.weights || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    const lost = ws.length >= 2 ? +(ws[0].kg - ws[ws.length - 1].kg).toFixed(1) : 0;
+    const workouts = (this.state.gamify && this.state.gamify.stats && this.state.gamify.stats.workouts) || 0;
+    const days = this.state.history.length;
+    const li = window.Gamify ? Gamify.levelInfo(this.state.gamify.xp || 0) : { level: 1 };
+    const stat = (big, label) => `<div class="j-stat"><b>${big}</b><span>${label}</span></div>`;
+    return `<div class="prog-section journey">
+        <h4>You've come this far 💪</h4>
+        <div class="j-grid">
+          ${stat(lost > 0 ? `${lost} kg` : (lost < 0 ? `+${Math.abs(lost)} kg` : "—"), "weight change")}
+          ${stat("🔥 " + this.state.streak, "day streak")}
+          ${stat(workouts, "workouts")}
+          ${stat(days, "days tracked")}
+          ${stat("⭐ " + li.level, "level")}
+        </div>
+      </div>`;
   },
 
   /* ---------- progress / trends modal ---------- */
@@ -753,6 +784,8 @@ const App = {
       <div class="ex-modal-card">
         <button class="ex-close" aria-label="close">✕</button>
         <h3 class="ex-title">📈 Progress</h3>
+
+        ${this.journeyHTML()}
 
         <div class="prog-section">
           <h4>Weigh-in</h4>

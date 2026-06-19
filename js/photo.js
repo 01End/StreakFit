@@ -52,39 +52,55 @@ function parsePhotoItems(text) {
   }));
 }
 
+const DEFAULT_VISION_MODEL = "google/gemma-4-31b-it:free";
+
 async function analyzePhotoOpenRouter(dataUrl) {
   const s = App.state.settings || {};
-  const model = s.visionModel || "meta-llama/llama-4-maverick:free";
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${s.openrouterKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": location.origin,
-      "X-Title": "StreakFit",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: [
-        { type: "text", text: PHOTO_PROMPT },
-        { type: "image_url", image_url: { url: dataUrl } },
-      ] }],
-    }),
-  });
-  if (res.status === 401) throw new Error("Invalid API key — check it in profile → Photo logging.");
-  if (res.status === 429) throw new Error("Rate limited (free model busy). Wait a moment or switch model.");
-  if (!res.ok) throw new Error("Request failed (" + res.status + ").");
-  const data = await res.json();
+  const model = s.visionModel || DEFAULT_VISION_MODEL;
+  let res;
+  try {
+    res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${s.openrouterKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": location.origin,
+        "X-Title": "StreakFit",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: [
+          { type: "text", text: PHOTO_PROMPT },
+          { type: "image_url", image_url: { url: dataUrl } },
+        ] }],
+      }),
+    });
+  } catch (e) {
+    throw new Error("Network error — are you online?");
+  }
+  // Always read the body so we can surface OpenRouter's real error message.
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = (data.error && data.error.message) || `HTTP ${res.status}`;
+    if (res.status === 401) throw new Error("Invalid API key — fix it in profile → Photo logging.");
+    if (res.status === 429) throw new Error("Rate limited (free model busy). Wait a moment or switch model in settings.");
+    if (res.status === 404) throw new Error(`Model "${model}" unavailable: ${msg}. Change the model in profile → Photo logging.`);
+    throw new Error(msg);
+  }
   const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-  if (!text) throw new Error("Empty reply from the model.");
+  if (!text) throw new Error("Empty reply from the model — try another model in settings.");
   return { items: parsePhotoItems(text), model: data.model || model };
 }
 
 function addPhotoItemsToToday(items) {
-  items.forEach((it) => App.state.active.foods.push({
-    name: it.name, grams: it.grams, kcal: it.kcal, protein: it.protein,
-    carbs: it.carbs, fats: it.fats, sugar: it.sugar, fiber: it.fiber, sodium: it.sodium,
-  }));
+  items.forEach((it) => {
+    App.state.active.foods.push({
+      name: it.name, grams: it.grams, kcal: it.kcal, protein: it.protein,
+      carbs: it.carbs, fats: it.fats, sugar: it.sugar, fiber: it.fiber, sodium: it.sodium,
+    });
+    if (window.recordRecent && window.per100FromEntry) recordRecent(per100FromEntry(it));
+  });
+  if (window.Gamify) Gamify.onPhoto(items.length);
   App.save();
 }
 
@@ -172,9 +188,11 @@ function openPhotoModal(dataUrl) {
 
   // Fallback (no key): prompt + paste box.
   const showFallback = (note) => {
+    const intro = note
+      ? `<p class="error">${note}</p><p class="muted small">No problem — do it manually: send this prompt to your Claude chat <em>with the photo</em>, then paste the JSON reply back.</p>`
+      : `<p class="muted small">No OpenRouter key set. Send this to your Claude chat with the photo, then paste the JSON reply back. (Add a key in profile → Photo logging for one-tap.)</p>`;
     body.innerHTML = `
-      ${note ? `<p class="error">${note}</p>` : ""}
-      <p class="muted small">No OpenRouter key set. Send this to your Claude chat with the photo, then paste the JSON reply back. (Add a key in profile → Photo logging for one-tap.)</p>
+      ${intro}
       <button class="btn-ghost" id="copy-prompt">Copy prompt</button>
       <textarea id="photo-paste" class="plan-input" rows="4" placeholder="Paste Claude's JSON reply here…"></textarea>
       <button class="btn-primary" id="photo-parse">Parse & review</button>

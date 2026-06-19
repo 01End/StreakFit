@@ -270,6 +270,10 @@ function renderWorkoutsTab() {
     // Celebrate + full re-render only when the whole workout is finished.
     if (App.state.active.workout.every((x) => x.done)) {
       App.celebrate("🏆 Workout complete!");
+      if (window.Gamify && !App.state.active.workoutAwarded) {
+        App.state.active.workoutAwarded = true;
+        Gamify.onWorkout();
+      }
       renderWorkoutsTab();
     }
   });
