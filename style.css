@@ -467,6 +467,7 @@ label input, label select { color: var(--text); }
 .paste-card summary { cursor: pointer; list-style: none; }
 .paste-card summary::-webkit-details-marker { display: none; }
 .paste-card[open] summary { margin-bottom: 10px; }
+.link-btn { background: none; border: none; color: var(--danger); padding: 0; font: inherit; text-decoration: underline; cursor: pointer; }
 
 /* checklist (with demo button + meta outside label) */
 .check-item { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }

@@ -71,6 +71,7 @@ const App = {
       s.settings.visionModel = "google/gemma-4-31b-it:free";
     if (!s.recentFoods) s.recentFoods = [];
     if (!s.favoriteFoods) s.favoriteFoods = [];
+    if (!s.customPlans) s.customPlans = [];
     if (!s.gamify) s.gamify = { xp: 0, achievements: {}, quests: null };
     if (typeof s.streak !== "number") s.streak = 0;
     // migrate old 8-glass water → ml (250 ml per glass)

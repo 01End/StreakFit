@@ -28,25 +28,43 @@ function recalcExerciseBurn() {
   App.save();
 }
 
-let _selectedPlan = 0; // index into BUILTIN_PLANS
+let _selectedPlan = 0; // index into getAllPlans()
+
+// Built-in plans + any imported (custom) plans the user added.
+function getAllPlans() {
+  return [...BUILTIN_PLANS, ...((App.state && App.state.customPlans) || [])];
+}
+
+// Resolve a plan/imported exercise (which may carry a `key` OR just a raw `name`)
+// into { name, anim, cues, met, exKey } — matching known EXERCISES by name for a demo.
+function resolveExercise(e) {
+  if (e.key) {
+    const ex = getExercise(e.key);
+    return { name: ex.name, anim: ex.anim, cues: ex.cues, met: ex.met, exKey: e.key };
+  }
+  const matchKey = Object.keys(EXERCISES).find(
+    (k) => EXERCISES[k].name.toLowerCase() === String(e.name || "").toLowerCase()
+  );
+  const ex = matchKey ? EXERCISES[matchKey] : null;
+  return { name: e.name || "Exercise", anim: ex ? ex.anim : "squat", cues: ex ? ex.cues : [], met: ex ? ex.met : 5, exKey: matchKey || null };
+}
+
+function exerciseFromSpec(e) {
+  const r = resolveExercise(e);
+  return {
+    name: r.name, sets: e.sets ?? null, reps: e.reps ?? null, rest: e.rest ?? 60,
+    kcal: e.kcal != null ? +e.kcal : kcalForExercise(r.met, e.sets),
+    done: false, exKey: r.exKey, anim: r.anim, cues: r.cues,
+  };
+}
 
 function loadPlanDay(planIndex, dayIndex) {
-  const day = BUILTIN_PLANS[planIndex].days[dayIndex];
-  App.state.active.workout = day.exercises.map((e) => {
-    const ex = getExercise(e.key);
-    return {
-      name: ex.name,
-      sets: e.sets,
-      reps: e.reps,
-      rest: e.rest,
-      kcal: kcalForExercise(ex.met, e.sets),
-      done: false,
-      exKey: e.key,
-      anim: ex.anim,
-      cues: ex.cues,
-    };
-  });
+  const plan = getAllPlans()[planIndex];
+  if (!plan || !plan.days[dayIndex]) return;
+  const day = plan.days[dayIndex];
+  App.state.active.workout = day.exercises.map(exerciseFromSpec);
   App.state.active.workoutTitle = day.title;
+  App.state.active.workoutAwarded = false; // allow XP for completing this new workout
   recalcExerciseBurn();
   renderWorkoutsTab();
 }
@@ -65,39 +83,41 @@ function extractPlanJSON(raw) {
   return s;
 }
 
+// Returns { type:"program", name, days } or { type:"day" }.
 function importWorkoutPlan(raw) {
   let data;
   try {
     data = JSON.parse(extractPlanJSON(raw));
   } catch (e) {
-    throw new Error("Couldn't read that. Paste the workout JSON (a { … } block or an exercises array).");
+    throw new Error("Couldn't read that. Paste the workout JSON.");
   }
-  // Accept a bare array of exercises, or { title, exercises }, or { days:[{exercises}] }.
   if (Array.isArray(data)) data = { exercises: data };
-  if (!data.exercises && Array.isArray(data.days) && data.days[0]) data = { title: data.days[0].title, exercises: data.days[0].exercises };
-  if (!data || !Array.isArray(data.exercises) || data.exercises.length === 0) {
-    throw new Error('Need an "exercises" array (e.g. {"title":"Push","exercises":[{"name":"Push-ups","sets":3,"reps":12}]}).');
+
+  // Multi-workout program → save as a custom plan you can pick days from.
+  const workouts = Array.isArray(data.workouts) ? data.workouts : Array.isArray(data.days) ? data.days : null;
+  if (workouts) {
+    const days = workouts
+      .filter((w) => Array.isArray(w.exercises) && w.exercises.length)
+      .map((w) => ({ title: w.title || w.name || "Workout", exercises: w.exercises }));
+    if (!days.length) throw new Error("No workouts with exercises found.");
+    const name = data.program || data.name || data.title || "Imported plan";
+    const subtitle = [data.level, data.duration_weeks ? data.duration_weeks + " weeks" : null].filter(Boolean).join(" · ") || "Imported program";
+    if (!App.state.customPlans) App.state.customPlans = [];
+    App.state.customPlans.push({ id: "custom_" + Date.now(), name, subtitle, days, custom: true });
+    App.save();
+    _selectedPlan = getAllPlans().length - 1; // select the newly imported plan
+    return { type: "program", name, days: days.length };
   }
-  App.state.active.workout = data.exercises.map((ex) => {
-    // Try to enrich a pasted exercise with a known animation/cues by name.
-    const matchKey = Object.keys(EXERCISES).find(
-      (k) => EXERCISES[k].name.toLowerCase() === String(ex.name || "").toLowerCase()
-    );
-    const known = matchKey ? EXERCISES[matchKey] : null;
-    return {
-      name: String(ex.name || "Exercise"),
-      sets: ex.sets ?? null,
-      reps: ex.reps ?? null,
-      rest: ex.rest ?? 60,
-      kcal: ex.kcal != null ? +ex.kcal : kcalForExercise(known ? known.met : 5, ex.sets),
-      done: false,
-      exKey: matchKey || null,
-      anim: known ? known.anim : "squat",
-      cues: Array.isArray(ex.cues) ? ex.cues : known ? known.cues : [],
-    };
-  });
+
+  // Single workout → load it as today's workout.
+  if (!Array.isArray(data.exercises) || !data.exercises.length) {
+    throw new Error('Paste a program ({"program":"…","workouts":[…]}) or a single {"title","exercises":[…]}.');
+  }
+  App.state.active.workout = data.exercises.map(exerciseFromSpec);
   App.state.active.workoutTitle = data.title || "Workout";
+  App.state.active.workoutAwarded = false;
   recalcExerciseBurn();
+  return { type: "day" };
 }
 
 /* ---------- animated demo + rest timer modal ---------- */
@@ -178,9 +198,11 @@ function renderWorkoutsTab() {
   const totalBurn = App.state.active.exerciseBurn || 0;
   const allDone = w.length > 0 && w.every((e) => e.done);
 
-  const plan = BUILTIN_PLANS[_selectedPlan] || BUILTIN_PLANS[0];
-  const planChips = BUILTIN_PLANS
-    .map((pl, i) => `<button class="chip plan-chip ${i === _selectedPlan ? "active" : ""}" data-plan="${i}">${pl.name}</button>`)
+  const plans = getAllPlans();
+  if (_selectedPlan >= plans.length) _selectedPlan = 0;
+  const plan = plans[_selectedPlan] || plans[0];
+  const planChips = plans
+    .map((pl, i) => `<button class="chip plan-chip ${i === _selectedPlan ? "active" : ""}" data-plan="${i}">${pl.name}${pl.custom ? ' <em class="tag">imported</em>' : ""}</button>`)
     .join("");
   const dayBtns = plan.days
     .map((d, i) => `<button class="day-btn" data-day="${i}">${d.title.split(" — ")[0]}<span>${d.title.split(" — ")[1] || ""}</span></button>`)
@@ -192,14 +214,14 @@ function renderWorkoutsTab() {
     <div class="card plan-card">
       <h3>🏋️ Choose a plan</h3>
       <div class="chip-row plan-chips">${planChips}</div>
-      <p class="muted small">${plan.subtitle}</p>
+      <p class="muted small">${plan.subtitle}${plan.custom ? ` · <button id="remove-plan" class="link-btn">remove</button>` : ""}</p>
       <div class="day-grid">${dayBtns}</div>
     </div>
 
     <details class="card paste-card">
-      <summary><h3 style="display:inline">📋 Paste a Claude Plan</h3></summary>
-      <p class="muted small">Ask Claude for a routine as JSON, paste it here, tick exercises off.</p>
-      <textarea id="plan-input" class="plan-input" rows="5" placeholder='{"title":"Push Day","exercises":[...]}'></textarea>
+      <summary><h3 style="display:inline">📋 Import a plan (JSON)</h3></summary>
+      <p class="muted small">Paste a full multi-day program (<code>{"program":"…","workouts":[…]}</code>) to add it to the picker, or a single <code>{"title","exercises":[…]}</code> to load now.</p>
+      <textarea id="plan-input" class="plan-input" rows="5" placeholder='{"program":"My Split","workouts":[{"title":"Push","exercises":[{"name":"Push-Up","sets":3,"reps":15}]}]}'></textarea>
       <div class="btn-row">
         <button id="import-plan" class="btn-primary">Import</button>
         <button id="sample-plan" class="btn-ghost">Use sample</button>
@@ -242,13 +264,22 @@ function renderWorkoutsTab() {
     const btn = e.target.closest(".day-btn");
     if (btn) loadPlanDay(_selectedPlan, +btn.dataset.day);
   });
+  const removeBtn = document.getElementById("remove-plan");
+  if (removeBtn) removeBtn.addEventListener("click", () => {
+    const customIdx = _selectedPlan - BUILTIN_PLANS.length;
+    if (customIdx >= 0) { App.state.customPlans.splice(customIdx, 1); App.save(); }
+    _selectedPlan = 0;
+    renderWorkoutsTab();
+  });
 
   document.getElementById("import-plan").addEventListener("click", () => {
     const errEl = document.getElementById("plan-error");
     errEl.textContent = "";
     try {
-      importWorkoutPlan(document.getElementById("plan-input").value);
+      const res = importWorkoutPlan(document.getElementById("plan-input").value);
+      document.getElementById("plan-input").value = "";
       renderWorkoutsTab();
+      if (res.type === "program" && App.celebrateMini) App.celebrateMini(`Added "${res.name}" (${res.days} days) ✓`);
     } catch (err) {
       errEl.textContent = err.message;
     }
