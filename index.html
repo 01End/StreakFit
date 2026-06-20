@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#0f1115">
+  <meta name="theme-color" content="#08090c">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="StreakFit">
   <link rel="manifest" href="manifest.json">
@@ -12,7 +13,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Outfit:wght@300..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <main id="app">
@@ -23,10 +25,10 @@
   </main>
 
   <nav class="bottom-nav">
-    <button class="nav-btn active" data-tab="dashboard"><span class="ico">📊</span><span>Dashboard</span></button>
-    <button class="nav-btn" data-tab="log"><span class="ico">🍽️</span><span>Log</span></button>
-    <button class="nav-btn" data-tab="workouts"><span class="ico">💪</span><span>Workouts</span></button>
-    <button class="nav-btn" data-tab="social"><span class="ico">🏆</span><span>Social</span></button>
+    <button class="nav-btn active" data-tab="dashboard"><span class="ico"><i class="fa-solid fa-gauge-high"></i></span><span>Dashboard</span></button>
+    <button class="nav-btn" data-tab="log"><span class="ico"><i class="fa-solid fa-utensils"></i></span><span>Log</span></button>
+    <button class="nav-btn" data-tab="workouts"><span class="ico"><i class="fa-solid fa-dumbbell"></i></span><span>Workouts</span></button>
+    <button class="nav-btn" data-tab="social"><span class="ico"><i class="fa-solid fa-users"></i></span><span>Social</span></button>
   </nav>
 
   <!-- Barcode reader (camera). External; app still works offline without it. -->
@@ -36,13 +38,13 @@
   <script src="js/foods.js?v=4"></script>
   <script src="js/exercises.js?v=5"></script>
   <script src="js/plans.js?v=7"></script>
-  <script src="js/gamify.js?v=2"></script>
-  <script src="js/database.js?v=7"></script>
-  <script src="js/workouts.js?v=8"></script>
-  <script src="js/social.js?v=3"></script>
-  <script src="js/scanner.js?v=2"></script>
-  <script src="js/photo.js?v=2"></script>
-  <script src="js/reminders.js?v=4"></script>
-  <script src="js/app.js?v=11"></script>
+  <script src="js/gamify.js?v=3"></script>
+  <script src="js/database.js?v=8"></script>
+  <script src="js/workouts.js?v=9"></script>
+  <script src="js/social.js?v=4"></script>
+  <script src="js/scanner.js?v=3"></script>
+  <script src="js/photo.js?v=3"></script>
+  <script src="js/reminders.js?v=5"></script>
+  <script src="js/app.js?v=12"></script>
 </body>
 </html>

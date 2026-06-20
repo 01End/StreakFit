@@ -132,8 +132,8 @@ function openPhotoModal(dataUrl) {
   modal.id = "photo-modal";
   modal.innerHTML = `
     <div class="ex-modal-card">
-      <button class="ex-close" aria-label="close">✕</button>
-      <h3 class="ex-title">📷 Photo meal</h3>
+      <button class="ex-close" aria-label="close"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="ex-title"><i class="fa-solid fa-camera"></i> Photo meal</h3>
       <img class="photo-preview" src="${dataUrl}" alt="meal photo">
       <div id="photo-body"></div>
     </div>`;
@@ -152,7 +152,7 @@ function openPhotoModal(dataUrl) {
           <span class="pi-name">${it.name}</span>
           <input class="pi-grams" type="number" min="1" data-i="${i}" value="${it.grams}"> g
           <span class="pi-kcal">${it.kcal} kcal</span>
-          <button class="del pi-del" data-i="${i}">✕</button>
+          <button class="del pi-del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
         </li>`)
       .join("");
     const totalKcal = () => Math.round(state.reduce((s, it) => s + it.kcal, 0));
@@ -211,7 +211,7 @@ function openPhotoModal(dataUrl) {
   };
 
   if (hasKey) {
-    body.innerHTML = `<p class="muted analyzing">🔎 Analyzing your meal…</p>`;
+    body.innerHTML = `<p class="muted analyzing"><i class="fa-solid fa-magnifying-glass"></i> Analyzing your meal…</p>`;
     analyzePhotoOpenRouter(dataUrl)
       .then(({ items, model }) => showItems(items, model))
       .catch((err) => showFallback(err.message));

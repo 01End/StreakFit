@@ -119,7 +119,7 @@ function openFoodDetail(food, defaultGrams) {
   modal.id = "food-modal";
   modal.innerHTML = `
     <div class="ex-modal-card">
-      <button class="ex-close" aria-label="close">✕</button>
+      <button class="ex-close" aria-label="close"><i class="fa-solid fa-xmark"></i></button>
       <h3 class="ex-title">${food.name}</h3>
       <p class="muted small">Per 100 g: ${Math.round(food.kcal)} kcal · ${food.protein}P · ${food.carbs}C · ${food.fats}F</p>
       <div class="chip-row">${chips.map((c) => `<button class="chip" data-g="${c.g}">${c.label}</button>`).join("")}</div>
@@ -215,18 +215,18 @@ function renderLogTab() {
     <div class="card">
       <div class="search-row">
         <input id="food-search" class="search" type="search" placeholder="Search foods (e.g. chicken, rice, labneh)…" autocomplete="off">
-        <button id="scan-btn" class="btn-scan" title="Scan barcode">▮▮</button>
+        <button id="scan-btn" class="btn-scan" title="Scan barcode" aria-label="Scan barcode"><i class="fa-solid fa-barcode"></i></button>
       </div>
-      <button id="snap-meal" class="btn-primary snap-btn">📸 Snap a meal (photo)</button>
+      <button id="snap-meal" class="btn-primary snap-btn"><i class="fa-solid fa-camera"></i> Snap a meal (photo)</button>
       <ul id="search-results" class="results"></ul>
-      <button id="online-search" class="btn-ghost" style="display:none">🔎 Search Open Food Facts (online)</button>
+      <button id="online-search" class="btn-ghost" style="display:none"><i class="fa-solid fa-magnifying-glass"></i> Search Open Food Facts (online)</button>
       <ul id="online-results" class="results"></ul>
       <p class="muted small">Tap a food → enter grams → it calculates automatically.</p>
       <div id="quick-foods" class="quick-foods"></div>
     </div>
 
     <details class="card">
-      <summary><h3 style="display:inline">🍳 Recipe Builder</h3></summary>
+      <summary><h3 style="display:inline"><i class="fa-solid fa-bowl-food"></i> Recipe Builder</h3></summary>
       <p class="muted small">Build a homemade dish from ingredients (by gram), save it, then log any amount later.</p>
       <div class="search-row">
         <input id="recipe-search" class="search" type="search" placeholder="Add an ingredient…" autocomplete="off">
@@ -239,7 +239,7 @@ function renderLogTab() {
     </details>
 
     <details class="card">
-      <summary><h3 style="display:inline">➕ Quick Add (one-off)</h3></summary>
+      <summary><h3 style="display:inline"><i class="fa-solid fa-plus"></i> Quick Add (one-off)</h3></summary>
       <p class="muted small">No product? Enter the amount you ate and its macros (e.g. Claude-estimated).</p>
       <form id="quick-add">
         <label>Food Name<input name="name" required placeholder="e.g. Grandma's stew"></label>
@@ -269,8 +269,8 @@ function renderLogTab() {
                     `<li>
                        <span class="log-name">${f.name}<span class="muted small log-serving">${f.grams ? f.grams + " g" : ""}</span></span>
                        <span class="muted">${Math.round(f.kcal)} kcal</span>
-                       <button class="fav-star ${isFavorite(f.name) ? "on" : ""}" data-i="${i}" title="Favorite">${isFavorite(f.name) ? "★" : "☆"}</button>
-                       <button class="del" data-i="${i}">✕</button>
+                       <button class="fav-star ${isFavorite(f.name) ? "on" : ""}" data-i="${i}" title="Favorite" aria-label="Favorite"><i class="fa-${isFavorite(f.name) ? "solid" : "regular"} fa-star"></i></button>
+                       <button class="del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
                      </li>`
                 )
                 .join("")
@@ -289,7 +289,7 @@ function renderLogTab() {
   searchEl.addEventListener("input", () => {
     const q = searchEl.value.trim();
     onlineBtn.style.display = q ? "block" : "none";
-    onlineBtn.textContent = "🔎 Search Open Food Facts (online)";
+    onlineBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Search Open Food Facts (online)`;
     onlineEl.innerHTML = "";
     if (quickFoods) quickFoods.style.display = q ? "none" : "block";
     const results = searchFoods(searchEl.value);
@@ -333,11 +333,11 @@ function renderLogTab() {
             )
             .join("")
         : `<li class="muted">No online matches.</li>`;
-      onlineBtn.textContent = "🔎 Search again";
+      onlineBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Search again`;
     } catch (err) {
       const msg = err.name === "AbortError" ? "Search timed out — check your connection." : `Search failed: ${err.message}`;
       onlineEl.innerHTML = `<li class="muted">${msg} You can use Quick Add or Recipe Builder below.</li>`;
-      onlineBtn.textContent = "🔎 Retry";
+      onlineBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Retry`;
     }
   });
   onlineEl.addEventListener("click", (e) => {
@@ -435,10 +435,10 @@ function renderQuickFoods() {
   const recents = App.state.recentFoods || [];
   let html = "";
   if (favs.length)
-    html += `<div class="qf-label">★ Favorites</div><div class="qf-chips">` +
+    html += `<div class="qf-label"><i class="fa-solid fa-star i-lime"></i> Favorites</div><div class="qf-chips">` +
       favs.map((f, i) => `<button class="qf-chip" data-kind="fav" data-i="${i}">${f.name}</button>`).join("") + `</div>`;
   if (recents.length)
-    html += `<div class="qf-label">🕘 Recent</div><div class="qf-chips">` +
+    html += `<div class="qf-label"><i class="fa-solid fa-clock-rotate-left"></i> Recent</div><div class="qf-chips">` +
       recents.map((f, i) => `<button class="qf-chip" data-kind="rec" data-i="${i}">${f.name}</button>`).join("") + `</div>`;
   if (!html)
     html = `<p class="muted small">Log a food, snap a photo, or scan a barcode to begin — your recent & favorite foods will appear here for one-tap re-logging.</p>`;
@@ -454,7 +454,7 @@ function renderRecipeDraft() {
       (it, i) => `<li class="rd-item">
         <span class="rd-name">${it.food.name}</span>
         <input class="rd-grams" type="number" min="1" data-i="${i}" value="${it.grams}"> g
-        <button class="del rd-del" data-i="${i}">✕</button>
+        <button class="del rd-del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
       </li>`
     )
     .join("");

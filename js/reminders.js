@@ -8,11 +8,11 @@
  */
 const Reminders = {
   DEFAULTS: [
-    { id: "breakfast", label: "Log breakfast 🍳", time: "08:00", enabled: false },
-    { id: "lunch",    label: "Log lunch 🥗",     time: "13:00", enabled: false },
-    { id: "dinner",   label: "Log dinner 🍽️",   time: "19:00", enabled: false },
-    { id: "water",    label: "Drink water 💧",   time: "15:00", enabled: false },
-    { id: "workout",  label: "Workout time 💪",  time: "18:00", enabled: false },
+    { id: "breakfast", label: "Log breakfast", time: "08:00", enabled: false },
+    { id: "lunch",    label: "Log lunch",     time: "13:00", enabled: false },
+    { id: "dinner",   label: "Log dinner",    time: "19:00", enabled: false },
+    { id: "water",    label: "Drink water",   time: "15:00", enabled: false },
+    { id: "workout",  label: "Workout time",  time: "18:00", enabled: false },
   ],
   _fired: {},
 
@@ -47,7 +47,7 @@ const Reminders = {
     if (granted) {
       try { new Notification("StreakFit", { body: r.label }); return; } catch (e) {}
     }
-    if (App.celebrateMini) App.celebrateMini("🔔 " + r.label);
+    if (App.celebrateMini) App.celebrateMini("Reminder: " + r.label);
   },
   tick() {
     const now = new Date();
@@ -139,21 +139,21 @@ const Reminders = {
           <label class="rem-toggle"><input type="checkbox" data-i="${i}" ${r.enabled ? "checked" : ""}></label>
           <input class="rem-label" data-i="${i}" value="${r.label.replace(/"/g, "&quot;")}">
           <input class="rem-time" type="time" data-i="${i}" value="${r.time}">
-          <button class="del rem-del" data-i="${i}">✕</button>
+          <button class="del rem-del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
         </div>`)
       .join("");
 
     // ── Permission / iOS guidance block ──
     let permLine;
     if (perm === "granted") {
-      permLine = `<div class="rem-ok">✅ Notifications are on.</div>`;
+      permLine = `<div class="rem-ok"><i class="fa-solid fa-circle-check"></i> Notifications are on.</div>`;
     } else if (ios && !pwa) {
       permLine = `
         <div class="rem-ios-guide">
-          <p class="rem-ios-title">📱 Add to Home Screen first</p>
+          <p class="rem-ios-title"><i class="fa-solid fa-mobile-screen-button"></i> Add to Home Screen first</p>
           <p class="muted small">iOS only allows notifications from installed apps.</p>
           <div class="rem-ios-steps">
-            <div class="ios-step"><span class="ios-step-ico">1</span><span>Tap <b>Share ↑</b> in Safari</span></div>
+            <div class="ios-step"><span class="ios-step-ico">1</span><span>Tap <b>Share <i class="fa-solid fa-arrow-up-from-bracket"></i></b> in Safari</span></div>
             <div class="ios-step"><span class="ios-step-ico">2</span><span>Tap <b>"Add to Home Screen"</b></span></div>
             <div class="ios-step"><span class="ios-step-ico">3</span><span>Open StreakFit from your home screen</span></div>
             <div class="ios-step"><span class="ios-step-ico">4</span><span>Come back here → tap Enable</span></div>
@@ -164,14 +164,14 @@ const Reminders = {
     } else {
       const iosNote = ios ? `<p class="muted small">Requires iOS 16.4 or newer.</p>` : "";
       permLine = `
-        <button id="rem-perm" class="btn-primary" style="margin-bottom:6px">🔔 Enable phone notifications</button>
+        <button id="rem-perm" class="btn-primary" style="margin-bottom:6px"><i class="fa-solid fa-bell"></i> Enable phone notifications</button>
         ${iosNote}`;
     }
 
     // ── Server push block (Mode B) ──
     const serverSection = hasSW ? `
       <details class="advanced" ${wUrl ? "open" : ""} style="margin-top:14px">
-        <summary style="cursor:pointer;font-size:0.85rem;color:var(--muted)">🌐 Background push (works when app is closed)</summary>
+        <summary style="cursor:pointer;font-size:0.85rem;color:var(--muted)"><i class="fa-solid fa-globe"></i> Background push (works when app is closed)</summary>
         <p class="muted small" style="margin-top:8px">Paste your Cloudflare Worker URL to get notifications even when StreakFit is fully closed.</p>
         <div class="search-row" style="gap:8px;margin-top:8px">
           <input id="push-url-input" class="search" placeholder="https://streakfit-push.yourname.workers.dev" value="${wUrl}" style="font-size:0.8rem">
@@ -187,8 +187,8 @@ const Reminders = {
     modal.id = "rem-modal";
     modal.innerHTML = `
       <div class="ex-modal-card">
-        <button class="ex-close" aria-label="close">✕</button>
-        <h3 class="ex-title">🔔 Reminders</h3>
+        <button class="ex-close" aria-label="close"><i class="fa-solid fa-xmark"></i></button>
+        <h3 class="ex-title"><i class="fa-solid fa-bell"></i> Reminders</h3>
         ${permLine}
         <div class="rem-list" style="margin-top:12px">${rows}</div>
         <button id="rem-add" class="btn-ghost">+ Add reminder</button>
@@ -203,7 +203,7 @@ const Reminders = {
     const permBtn = modal.querySelector("#rem-perm");
     if (permBtn) permBtn.addEventListener("click", async () => {
       const result = await this.requestPermission();
-      if (result === "granted") App.celebrateMini("🔔 Notifications enabled!");
+      if (result === "granted") App.celebrateMini("Notifications enabled!");
       modal.remove(); this.open();
     });
 
@@ -249,11 +249,11 @@ const Reminders = {
         await this.syncToWorker(url);
         App.state.settings.pushWorkerUrl = url;
         App.save();
-        statusEl.textContent = "✅ Connected! Your reminder schedule is synced.";
+        statusEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> Connected! Your reminder schedule is synced.`;
         statusEl.style.color = "var(--good)";
         if (testBtn) testBtn.disabled = false;
       } catch (err) {
-        statusEl.textContent = "❌ " + err.message;
+        statusEl.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ` + err.message;
         statusEl.style.color = "var(--danger)";
       }
     });
@@ -265,10 +265,10 @@ const Reminders = {
       statusEl.style.color = "var(--muted)";
       try {
         await this.sendTestPush(url);
-        statusEl.textContent = "✅ Test sent — you should get a notification shortly!";
+        statusEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> Test sent — you should get a notification shortly!`;
         statusEl.style.color = "var(--good)";
       } catch (err) {
-        statusEl.textContent = "❌ " + err.message;
+        statusEl.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ` + err.message;
         statusEl.style.color = "var(--danger)";
       }
     });

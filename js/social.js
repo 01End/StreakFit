@@ -44,11 +44,11 @@ function renderLeaderboard(friend) {
   const board = document.getElementById("leaderboard");
   board.innerHTML = `
     <table class="board">
-      <thead><tr><th></th><th>🔥</th><th>⭐ Lvl</th><th>📉 kg</th><th>💪 W/o</th></tr></thead>
+      <thead><tr><th></th><th><i class="fa-solid fa-fire i-ember"></i></th><th><i class="fa-solid fa-star i-lime"></i> Lvl</th><th><i class="fa-solid fa-arrow-trend-down"></i> kg</th><th><i class="fa-solid fa-dumbbell"></i> W/o</th></tr></thead>
       <tbody>
         ${rows
           .map((r, i) => {
-            const medal = i === 0 ? "🥇" : "🥈";
+            const medal = `<i class="fa-solid fa-medal" style="color:${i === 0 ? "#ffd24b" : "#c0c6cc"}"></i>`;
             return `<tr class="${r.n === "You" ? "me-row" : ""}">
               <td>${medal} ${r.n}</td>
               <td>${r.s}</td>
@@ -65,14 +65,14 @@ function renderLeaderboard(friend) {
 
 function shareCardHTML() {
   const s = mySnapshot();
-  const cell = (icon, big, label) => `<div class="sc-stat"><span class="sc-icon">${icon}</span><b>${big}</b><span class="sc-label">${label}</span></div>`;
+  const cell = (icon, big, label) => `<div class="sc-stat"><span class="sc-icon"><i class="fa-solid ${icon}"></i></span><b>${big}</b><span class="sc-label">${label}</span></div>`;
   return `<div id="share-card" class="share-card">
-      <div class="sc-head">🔥 StreakFit</div>
+      <div class="sc-head"><i class="fa-solid fa-fire"></i> StreakFit</div>
       <div class="sc-grid">
-        ${cell("🔥", s.s, "day streak")}
-        ${cell("⭐", s.lv, "level")}
-        ${cell("📉", (s.wl > 0 ? s.wl : 0) + " kg", "lost")}
-        ${cell("💪", s.wo, "workouts")}
+        ${cell("fa-fire", s.s, "day streak")}
+        ${cell("fa-star", s.lv, "level")}
+        ${cell("fa-arrow-trend-down", (s.wl > 0 ? s.wl : 0) + " kg", "lost")}
+        ${cell("fa-dumbbell", s.wo, "workouts")}
       </div>
       <div class="sc-foot">${App.prettyDate(new Date())}</div>
     </div>`;
@@ -98,13 +98,13 @@ function renderSocialTab() {
     <h2>Social Challenges</h2>
 
     <div class="card">
-      <h3>🎴 Your card</h3>
+      <h3><i class="fa-solid fa-id-card"></i> Your card</h3>
       ${shareCardHTML()}
       <p class="muted small">Screenshot to share your progress, or send the token below.</p>
     </div>
 
     <div class="card">
-      <h3>📤 Share / challenge a friend</h3>
+      <h3><i class="fa-solid fa-share-nodes"></i> Share / challenge a friend</h3>
       <textarea id="my-token" class="token" rows="3" readonly>${myToken}</textarea>
       <div class="btn-row">
         <button id="copy-token" class="btn-primary">Copy token</button>
@@ -113,14 +113,14 @@ function renderSocialTab() {
     </div>
 
     <div class="card">
-      <h3>📥 Compare with a friend</h3>
+      <h3><i class="fa-solid fa-inbox"></i> Compare with a friend</h3>
       <textarea id="friend-token" class="token" rows="3" placeholder="Paste your friend's token here…"></textarea>
       <button id="compare-btn" class="btn-primary">Compare</button>
       <p id="social-error" class="error"></p>
     </div>
 
     <div class="card">
-      <h3>🏆 Leaderboard</h3>
+      <h3><i class="fa-solid fa-trophy"></i> Leaderboard</h3>
       <div id="leaderboard"></div>
     </div>`;
 

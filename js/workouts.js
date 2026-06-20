@@ -125,7 +125,7 @@ function openExerciseDemo(item) {
   modal.id = "ex-modal";
   modal.innerHTML = `
     <div class="ex-modal-card">
-      <button class="ex-close" aria-label="close">✕</button>
+      <button class="ex-close" aria-label="close"><i class="fa-solid fa-xmark"></i></button>
       <h3 class="ex-title">${item.name}</h3>
       <div class="ex-demo">${exerciseFrames(anim)}</div>
       <div class="ex-meta-row">${item.sets ? `${item.sets} sets` : ""} ${item.reps ? `· ${item.reps}` : ""}</div>
@@ -155,7 +155,7 @@ function openExerciseDemo(item) {
     display.classList.add("running");
     _restTimer = setInterval(() => {
       remaining--;
-      display.textContent = remaining > 0 ? `${remaining}s` : "GO! 💪";
+      display.textContent = remaining > 0 ? `${remaining}s` : "GO!";
       if (remaining <= 0) {
         clearInterval(_restTimer);
         display.classList.remove("running");
@@ -202,14 +202,14 @@ function renderWorkoutsTab() {
     <h2>Workouts</h2>
 
     <div class="card plan-card">
-      <h3>🏋️ Choose a plan</h3>
+      <h3><i class="fa-solid fa-dumbbell"></i> Choose a plan</h3>
       <div class="chip-row plan-chips">${planChips}</div>
       <p class="muted small">${plan.subtitle}${plan.custom ? ` · <button id="remove-plan" class="link-btn">remove</button>` : ""}</p>
       <div class="day-grid">${dayBtns}</div>
     </div>
 
     <details class="card paste-card">
-      <summary><h3 style="display:inline">📋 Import a plan (JSON)</h3></summary>
+      <summary><h3 style="display:inline"><i class="fa-solid fa-file-import"></i> Import a plan (JSON)</h3></summary>
       <p class="muted small">Paste a full multi-day program (<code>{"program":"…","workouts":[…]}</code>) to add it to the picker, or a single <code>{"title","exercises":[…]}</code> to load now.</p>
       <textarea id="plan-input" class="plan-input" rows="5" placeholder='{"program":"My Split","workouts":[{"title":"Push","exercises":[{"name":"Push-Up","sets":3,"reps":15}]}]}'></textarea>
       <div class="btn-row">
@@ -222,7 +222,7 @@ function renderWorkoutsTab() {
     <div class="card">
       <div class="wk-head">
         <h3>${title}</h3>
-        <span class="burn-pill">🔥 ${totalBurn} kcal back</span>
+        <span class="burn-pill"><i class="fa-solid fa-fire"></i> ${totalBurn} kcal back</span>
       </div>
       <ul class="checklist">
         ${
@@ -236,14 +236,14 @@ function renderWorkoutsTab() {
                 <span class="ex-name">${e.name}</span>
               </label>
               <span class="ex-meta">${e.sets ? e.sets + "×" + (e.reps ?? "") : ""}</span>
-              <button class="demo-btn" data-i="${i}" aria-label="show demo">▶</button>
+              <button class="demo-btn" data-i="${i}" aria-label="show demo"><i class="fa-solid fa-play"></i></button>
             </li>`
                 )
                 .join("")
             : `<li class="muted">Pick a day above or paste a plan to get started.</li>`
         }
       </ul>
-      ${allDone ? `<p class="all-done">✅ Workout complete — ${totalBurn} kcal credited to your day!</p>` : ""}
+      ${allDone ? `<p class="all-done"><i class="fa-solid fa-circle-check"></i> Workout complete — ${totalBurn} kcal credited to your day!</p>` : ""}
     </div>`;
 
   root.querySelector(".plan-chips").addEventListener("click", (e) => {
@@ -287,10 +287,10 @@ function renderWorkoutsTab() {
     recalcExerciseBurn();
     box.closest(".check-item").classList.toggle("done", box.checked);
     const pill = root.querySelector(".burn-pill");
-    if (pill) pill.textContent = `🔥 ${App.state.active.exerciseBurn} kcal back`;
+    if (pill) pill.innerHTML = `<i class="fa-solid fa-fire"></i> ${App.state.active.exerciseBurn} kcal back`;
     // Celebrate + full re-render only when the whole workout is finished.
     if (App.state.active.workout.every((x) => x.done)) {
-      App.celebrate("🏆 Workout complete!");
+      App.celebrate("Workout complete!");
       if (window.Gamify && !App.state.active.workoutAwarded) {
         App.state.active.workoutAwarded = true;
         Gamify.onWorkout();

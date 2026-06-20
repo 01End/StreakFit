@@ -24,8 +24,8 @@ function openScannerModal() {
   modal.id = "scan-modal";
   modal.innerHTML = `
     <div class="scan-card">
-      <button class="ex-close" aria-label="close">✕</button>
-      <h3>📷 Scan a barcode</h3>
+      <button class="ex-close" aria-label="close"><i class="fa-solid fa-xmark"></i></button>
+      <h3><i class="fa-solid fa-barcode"></i> Scan a barcode</h3>
       <div id="reader" class="reader"></div>
       <p id="scan-status" class="muted small">Point your camera at a product barcode…</p>
     </div>`;

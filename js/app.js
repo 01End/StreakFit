@@ -30,6 +30,9 @@ const App = {
     "Strong is the goal. Lean is the bonus.",
   ],
 
+  // Mood scale 1–5 → Font Awesome face icons (sad → ecstatic).
+  MOOD_ICONS: ["fa-face-sad-tear", "fa-face-frown", "fa-face-meh", "fa-face-smile", "fa-face-grin-stars"],
+
   state: null,
 
   /* ---------- persistence ---------- */
@@ -427,7 +430,7 @@ const App = {
     const before = this.state.active.waterMl;
     const target = this.state.profile?.waterTargetMl || 3000;
     this.setWaterMl(before + ml);
-    if (ml > 0 && this.state.active.waterMl >= target && before < target) this.celebrate("💧 Hydration goal hit!");
+    if (ml > 0 && this.state.active.waterMl >= target && before < target) this.celebrate("Hydration goal hit!");
   },
 
   setSteps(steps) {
@@ -485,7 +488,7 @@ const App = {
               <option value="gain" ${sel(p.goalType, "gain")}>Lean bulk / gain</option>
             </select>
           </label>
-          <p class="muted small">Fine-tune your pace and calories anytime with the ⚖️ calculator on the dashboard.</p>
+          <p class="muted small">Fine-tune your pace and calories anytime with the calculator on the dashboard.</p>
           ${
             isEdit
               ? `<details class="advanced"><summary>Advanced: override targets</summary>
@@ -502,7 +505,7 @@ const App = {
           }
           ${
             isEdit
-              ? `<details class="advanced"><summary>📷 Photo logging (OpenRouter)</summary>
+              ? `<details class="advanced"><summary><i class="fa-solid fa-camera"></i> Photo logging (OpenRouter)</summary>
                   <label>OpenRouter API key<input name="openrouterKey" type="password" placeholder="sk-or-..." value="${(this.state.settings || {}).openrouterKey || ""}"></label>
                   <label>Vision model<input name="visionModel" value="${(this.state.settings || {}).visionModel || "meta-llama/llama-4-maverick:free"}"></label>
                   <p class="muted small">Stored on this device only. Free key: openrouter.ai → Keys. Leave blank to use the chat-handoff flow.</p>
@@ -586,13 +589,13 @@ const App = {
     const a = this.state.active;
     const out = [];
     const add = (icon, name, earned) => out.push({ icon, name, earned });
-    add("🔥", "3-day", this.state.streak >= 3);
-    add("⚡", "Week", this.state.streak >= 7);
-    add("🏆", "30-day", this.state.streak >= 30);
-    add("💪", "Protein", t.protein >= (p?.proteinMinG || 1e9));
-    add("💧", "Hydrated", a.waterMl >= (p?.waterTargetMl || 1e9));
-    add("✅", "Workout", a.workout.length > 0 && a.workout.every((e) => e.done));
-    add("📋", "Logged", a.foods.length > 0);
+    add("fa-fire", "3-day", this.state.streak >= 3);
+    add("fa-bolt", "Week", this.state.streak >= 7);
+    add("fa-trophy", "30-day", this.state.streak >= 30);
+    add("fa-dumbbell", "Protein", t.protein >= (p?.proteinMinG || 1e9));
+    add("fa-droplet", "Hydrated", a.waterMl >= (p?.waterTargetMl || 1e9));
+    add("fa-circle-check", "Workout", a.workout.length > 0 && a.workout.every((e) => e.done));
+    add("fa-utensils", "Logged", a.foods.length > 0);
     return out;
   },
 
@@ -629,16 +632,16 @@ const App = {
     const gt = p.goalType || "lose";
     const leftWord = gt === "maintain" ? "to maintenance" : gt === "gain" ? "to your target" : "until your max";
     const verdicts = [];
-    if (remaining >= 0) verdicts.push(`<li class="v-good">✅ ${remaining} kcal ${leftWord}</li>`);
-    else verdicts.push(`<li class="v-bad">🚫 ${Math.abs(remaining)} kcal over ${gt === "gain" ? "target" : "your max"}</li>`);
+    if (remaining >= 0) verdicts.push(`<li class="v-good"><i class="fa-solid fa-circle-check"></i> ${remaining} kcal ${leftWord}</li>`);
+    else verdicts.push(`<li class="v-bad"><i class="fa-solid fa-ban"></i> ${Math.abs(remaining)} kcal over ${gt === "gain" ? "target" : "your max"}</li>`);
     if (t.protein >= p.proteinMinG)
-      verdicts.push(`<li class="v-good">✅ Protein goal met (${Math.round(t.protein)}/${p.proteinMinG} g)</li>`);
+      verdicts.push(`<li class="v-good"><i class="fa-solid fa-circle-check"></i> Protein goal met (${Math.round(t.protein)}/${p.proteinMinG} g)</li>`);
     else
-      verdicts.push(`<li class="v-warn">⚠️ Protein ${Math.round(p.proteinMinG - t.protein)} g short</li>`);
+      verdicts.push(`<li class="v-warn"><i class="fa-solid fa-triangle-exclamation"></i> Protein ${Math.round(p.proteinMinG - t.protein)} g short</li>`);
     if (t.sugar <= p.sugarMaxG)
-      verdicts.push(`<li class="v-good">✅ Sugar under cap (${Math.round(t.sugar)}/${p.sugarMaxG} g)</li>`);
+      verdicts.push(`<li class="v-good"><i class="fa-solid fa-circle-check"></i> Sugar under cap (${Math.round(t.sugar)}/${p.sugarMaxG} g)</li>`);
     else
-      verdicts.push(`<li class="v-bad">🚫 Sugar over by ${Math.round(t.sugar - p.sugarMaxG)} g</li>`);
+      verdicts.push(`<li class="v-bad"><i class="fa-solid fa-ban"></i> Sugar over by ${Math.round(t.sugar - p.sugarMaxG)} g</li>`);
 
     const goalType = p.goalType || "lose";
     const gp = this.goalProjection();
@@ -646,19 +649,19 @@ const App = {
     let goalCard;
     if (goalType === "maintain") {
       goalCard = `<div class="card goal-card">
-           <h3>🎯 ${goalLabel}</h3>
+           <h3><i class="fa-solid fa-bullseye"></i> ${goalLabel}</h3>
            <div class="goal-big">${p.calorieTarget} <span class="muted">kcal/day</span></div>
            <div class="muted small">Eating at maintenance (TDEE ${p.tdee})</div>
            <button id="adjust-goal" class="btn-ghost">Adjust goal</button>
          </div>`;
     } else if (gp) {
       const warn = !gp.safe
-        ? `<div class="goal-warn">⚠️ That pace (${gp.requestedWeeklyKg} kg/wk) is faster than the safe max of ${gp.maxSafeWeeklyKg} kg/wk — calories are capped safely, so realistic finish is shown below.</div>`
+        ? `<div class="goal-warn"><i class="fa-solid fa-triangle-exclamation"></i> That pace (${gp.requestedWeeklyKg} kg/wk) is faster than the safe max of ${gp.maxSafeWeeklyKg} kg/wk — calories are capped safely, so realistic finish is shown below.</div>`
         : gp.floored
-        ? `<div class="goal-warn">ℹ️ Calories capped at the safe limit, so the realistic finish is a bit later than your chosen date.</div>`
+        ? `<div class="goal-warn"><i class="fa-solid fa-circle-info"></i> Calories capped at the safe limit, so the realistic finish is a bit later than your chosen date.</div>`
         : "";
       goalCard = `<div class="card goal-card">
-           <h3>🎯 ${goalLabel}</h3>
+           <h3><i class="fa-solid fa-bullseye"></i> ${goalLabel}</h3>
            <div class="goal-big">${gp.kgToGo} kg <span class="muted">${gp.gaining ? "to gain" : "to go"}</span></div>
            <div class="goal-line">~${gp.etaWeeks} weeks → <strong>${this.prettyDate(gp.target)}</strong></div>
            <div class="muted small">~${gp.achievableWeeklyKg} kg/wk · ${gp.gaining ? "surplus" : "deficit"} ${gp.gap} kcal/day${gp.chosenWeeks ? ` · target ${gp.chosenWeeks} wk` : ""}</div>
@@ -667,7 +670,7 @@ const App = {
          </div>`;
     } else {
       goalCard = `<div class="card goal-card muted-card">
-           <h3>🎯 ${goalLabel}</h3>
+           <h3><i class="fa-solid fa-bullseye"></i> ${goalLabel}</h3>
            <p class="muted small">Open the calculator to set your pace, target weight + timeframe, or a custom calorie target.</p>
            <button id="adjust-goal" class="btn-ghost">Open calorie calculator</button>
          </div>`;
@@ -679,11 +682,11 @@ const App = {
 
     root.innerHTML = `
       <header class="dash-head">
-        <div class="streak">🔥 <span>${this.state.streak}</span> day streak</div>
+        <div class="streak"><i class="fa-solid fa-fire"></i> <span>${this.state.streak}</span> day streak</div>
         <div class="head-btns">
-          <button id="open-reminders" class="btn-ghost small">🔔</button>
-          <button id="open-progress" class="btn-ghost small">📈</button>
-          <button id="edit-profile" class="btn-ghost small">⚙︎</button>
+          <button id="open-reminders" class="btn-ghost small" aria-label="Reminders"><i class="fa-solid fa-bell"></i></button>
+          <button id="open-progress" class="btn-ghost small" aria-label="Progress"><i class="fa-solid fa-chart-line"></i></button>
+          <button id="edit-profile" class="btn-ghost small" aria-label="Settings"><i class="fa-solid fa-gear"></i></button>
         </div>
       </header>
 
@@ -702,7 +705,7 @@ const App = {
         ${this.ring(this.state.active.waterMl / targetMl, "var(--water)", `${(this.state.active.waterMl / 1000).toFixed(1)}L`, "water")}
       </div>
 
-      ${badges.some((b) => b.earned) ? `<div class="badges">${badges.filter((b) => b.earned).map((b) => `<span class="badge" title="${b.name}">${b.icon}</span>`).join("")}</div>` : ""}
+      ${badges.some((b) => b.earned) ? `<div class="badges">${badges.filter((b) => b.earned).map((b) => `<span class="badge" title="${b.name}"><i class="fa-solid ${b.icon}"></i></span>`).join("")}</div>` : ""}
 
       ${window.Gamify ? Gamify.dashboardHTML() : ""}
 
@@ -711,7 +714,7 @@ const App = {
       ${goalCard}
 
       <div class="card">
-        <div class="wk-head"><h3>💧 Water</h3><span id="water-amount" class="water-amount">${(this.state.active.waterMl / 1000).toFixed(2)} / ${(targetMl / 1000).toFixed(2)} L</span></div>
+        <div class="wk-head"><h3><i class="fa-solid fa-droplet i-cyan"></i> Water</h3><span id="water-amount" class="water-amount">${(this.state.active.waterMl / 1000).toFixed(2)} / ${(targetMl / 1000).toFixed(2)} L</span></div>
         <div class="water-bar"><div id="water-fill" class="water-fill" style="width:${Math.min(100, (this.state.active.waterMl / targetMl) * 100).toFixed(1)}%"></div></div>
         <div class="chip-row water-chips">
           <button class="chip water-add" data-ml="250">+250</button>
@@ -727,16 +730,16 @@ const App = {
       </div>
 
       <div class="card">
-        <div class="wk-head"><h3>👟 Steps</h3><span class="burn-pill">🔥 ${stepBurn} kcal</span></div>
+        <div class="wk-head"><h3><i class="fa-solid fa-shoe-prints"></i> Steps</h3><span class="burn-pill"><i class="fa-solid fa-fire"></i> ${stepBurn} kcal</span></div>
         <input id="steps-input" class="steps" type="number" min="0" placeholder="Enter today's steps" value="${this.state.active.steps || ""}">
         <p class="muted small">Steps add to your daily max — move more, eat more.</p>
       </div>
 
       <div class="card">
-        <h3>🌙 Sleep & Mood</h3>
+        <h3><i class="fa-solid fa-moon i-cyan"></i> Sleep & Mood</h3>
         <label>Hours slept<input id="sleep-input" class="steps" type="number" step="0.5" min="0" max="24" placeholder="e.g. 7.5" value="${this.state.active.sleepHours ?? ""}"></label>
-        <div class="mood-row"><span class="mood-label">Mood</span><div class="faces" id="mood-faces">${[1, 2, 3, 4, 5].map((n) => `<button class="face ${this.state.active.mood === n ? "sel" : ""}" data-m="${n}">${["😞", "😕", "😐", "🙂", "😄"][n - 1]}</button>`).join("")}</div></div>
-        <div class="mood-row"><span class="mood-label">Energy</span><div class="faces" id="energy-faces">${[1, 2, 3, 4, 5].map((n) => `<button class="face energy ${this.state.active.energy >= n ? "on" : ""}" data-e="${n}">⚡</button>`).join("")}</div></div>
+        <div class="mood-row"><span class="mood-label">Mood</span><div class="faces" id="mood-faces">${[1, 2, 3, 4, 5].map((n) => `<button class="face ${this.state.active.mood === n ? "sel" : ""}" data-m="${n}" aria-label="Mood ${n}"><i class="fa-solid ${App.MOOD_ICONS[n - 1]}"></i></button>`).join("")}</div></div>
+        <div class="mood-row"><span class="mood-label">Energy</span><div class="faces" id="energy-faces">${[1, 2, 3, 4, 5].map((n) => `<button class="face energy ${this.state.active.energy >= n ? "on" : ""}" data-e="${n}" aria-label="Energy ${n}"><i class="fa-solid fa-bolt"></i></button>`).join("")}</div></div>
       </div>
 
       <div class="card macros-mini">
@@ -796,13 +799,13 @@ const App = {
     const avgSleep = sleeps.length ? +(sleeps.reduce((a, b) => a + b, 0) / sleeps.length).toFixed(1) : null;
     const stat = (big, label) => `<div class="j-stat"><b>${big}</b><span>${label}</span></div>`;
     return `<div class="prog-section journey">
-        <h4>You've come this far 💪</h4>
+        <h4><i class="fa-solid fa-dumbbell"></i> You've come this far</h4>
         <div class="j-grid">
           ${stat(lost > 0 ? `${lost} kg` : (lost < 0 ? `+${Math.abs(lost)} kg` : "—"), "weight change")}
-          ${stat("🔥 " + this.state.streak, "day streak")}
+          ${stat(`<i class="fa-solid fa-fire i-ember"></i> ` + this.state.streak, "day streak")}
           ${stat(workouts, "workouts")}
           ${stat(days, "days tracked")}
-          ${stat("⭐ " + li.level, "level")}
+          ${stat(`<i class="fa-solid fa-star i-lime"></i> ` + li.level, "level")}
           ${stat(avgSleep ? avgSleep + "h" : "—", "avg sleep")}
         </div>
       </div>`;
@@ -816,7 +819,7 @@ const App = {
 
     const a = this.adaptiveTDEE();
     const adaptiveCard = a.insufficient
-      ? `<div class="prog-stat"><span class="muted small">⚙️ Adaptive TDEE: ${a.reason}</span></div>`
+      ? `<div class="prog-stat"><span class="muted small"><i class="fa-solid fa-gear"></i> Adaptive TDEE: ${a.reason}</span></div>`
       : `<div class="prog-stat">
            <div class="prog-stat-main">${a.tdee} <span class="muted">kcal adaptive TDEE</span></div>
            <div class="muted small">vs formula ${a.formula} · ${a.weightChange > 0 ? "+" : ""}${a.weightChange} kg over ${a.spanDays} days (${a.loggedDays} logged)</div>
@@ -842,8 +845,8 @@ const App = {
     modal.id = "progress-modal";
     modal.innerHTML = `
       <div class="ex-modal-card">
-        <button class="ex-close" aria-label="close">✕</button>
-        <h3 class="ex-title">📈 Progress</h3>
+        <button class="ex-close" aria-label="close"><i class="fa-solid fa-xmark"></i></button>
+        <h3 class="ex-title"><i class="fa-solid fa-chart-line"></i> Progress</h3>
 
         ${this.journeyHTML()}
 
@@ -866,7 +869,7 @@ const App = {
         <div class="prog-section">
           <h4>Consistency</h4>
           <div class="prog-grid">
-            <div class="prog-pill"><b>🔥 ${this.state.streak}</b><span>streak</span></div>
+            <div class="prog-pill"><b><i class="fa-solid fa-fire i-ember"></i> ${this.state.streak}</b><span>streak</span></div>
             <div class="prog-pill"><b>${proteinHits}/${proteinDays.length || 0}</b><span>protein (14d)</span></div>
             <div class="prog-pill"><b>${goalHits}/${goalDays.length || 0}</b><span>goal days (30d)</span></div>
           </div>
@@ -907,7 +910,7 @@ const App = {
     const withEnergy = hist.filter((h) => h.energy != null);
 
     if (!withSleep.length && !withMood.length) {
-      return `<div class="prog-section"><h4>🌙 Sleep & Mood</h4><p class="muted small">Log sleep hours and mood on the dashboard to see insights here.</p></div>`;
+      return `<div class="prog-section"><h4><i class="fa-solid fa-moon i-cyan"></i> Sleep & Mood</h4><p class="muted small">Log sleep hours and mood on the dashboard to see insights here.</p></div>`;
     }
 
     // Averages.
@@ -923,9 +926,9 @@ const App = {
         + `<div class="chart-cap muted small">Sleep hours · last ${sleepLast14.length} nights</div>`
       : "";
 
-    // Mood emoji map.
-    const moodFace = (n) => ["😞","😕","😐","🙂","😄"][Math.round(n) - 1] || "😐";
-    const energyStr = (n) => "⚡".repeat(Math.round(n));
+    // Mood icon map (Font Awesome face icons).
+    const moodFace = (n) => `<i class="fa-solid ${App.MOOD_ICONS[Math.round(n) - 1] || "fa-face-meh"}"></i>`;
+    const energyStr = (n) => `<i class="fa-solid fa-bolt i-ember"></i>`.repeat(Math.round(n));
 
     // Insight: compare mood on good-sleep days vs poor-sleep days.
     let insight = "";
@@ -939,11 +942,11 @@ const App = {
         if (good.length && poor.length && moodGood !== null && moodPoor !== null) {
           const diff = +(moodGood - moodPoor).toFixed(1);
           if (diff > 0.3) {
-            insight = `<div class="insight-pill">💡 On 7+ h sleep days your mood is <b>${moodFace(moodGood)}</b> vs <b>${moodFace(moodPoor)}</b> on shorter nights. Sleep wins!</div>`;
+            insight = `<div class="insight-pill"><i class="fa-solid fa-lightbulb"></i> On 7+ h sleep days your mood is <b>${moodFace(moodGood)}</b> vs <b>${moodFace(moodPoor)}</b> on shorter nights. Sleep wins!</div>`;
           } else if (diff < -0.3) {
-            insight = `<div class="insight-pill">💡 Your mood holds up even on shorter sleep nights — you're resilient!</div>`;
+            insight = `<div class="insight-pill"><i class="fa-solid fa-lightbulb"></i> Your mood holds up even on shorter sleep nights — you're resilient!</div>`;
           } else {
-            insight = `<div class="insight-pill">💡 Your mood is pretty consistent regardless of sleep length — keep logging to see patterns develop.</div>`;
+            insight = `<div class="insight-pill"><i class="fa-solid fa-lightbulb"></i> Your mood is pretty consistent regardless of sleep length — keep logging to see patterns develop.</div>`;
           }
         }
       }
@@ -953,9 +956,9 @@ const App = {
       val != null ? `<div class="prog-pill"><b>${icon} ${val}</b><span>${label}</span></div>` : "";
 
     return `<div class="prog-section">
-      <h4>🌙 Sleep & Mood</h4>
+      <h4><i class="fa-solid fa-moon i-cyan"></i> Sleep & Mood</h4>
       <div class="prog-grid">
-        ${statChip("😴", avgSleep ? avgSleep + "h" : null, "avg sleep")}
+        ${statChip(`<i class="fa-solid fa-bed i-cyan"></i>`, avgSleep ? avgSleep + "h" : null, "avg sleep")}
         ${statChip("", avgMood ? moodFace(avgMood) : null, "avg mood")}
         ${statChip("", avgEnergy ? energyStr(avgEnergy) : null, "avg energy")}
       </div>
@@ -1022,8 +1025,8 @@ const App = {
     ).join("");
     modal.innerHTML = `
       <div class="ex-modal-card">
-        <button class="ex-close" aria-label="close">✕</button>
-        <h3 class="ex-title">⚖️ Calorie Calculator</h3>
+        <button class="ex-close" aria-label="close"><i class="fa-solid fa-xmark"></i></button>
+        <h3 class="ex-title"><i class="fa-solid fa-scale-balanced"></i> Calorie Calculator</h3>
         <div class="seg-row">${gtBtns}</div>
         <div id="calc-controls"></div>
         <details class="advanced bodycomp"><summary>Body composition (optional — improves accuracy)</summary>
@@ -1077,7 +1080,7 @@ const App = {
         <div class="muted small">TDEE ${r.tdee} · ${gapTxt}</div>
         ${w.goalType !== "maintain" ? `<div class="muted small">~${r.weeklyKg} kg/wk${r.eta ? ` · ${r.eta.weeks} wk → ${r.eta.date}` : ""}</div>` : ""}
         <div class="muted small">${r.effBf != null ? `Body fat ${r.effBf}% · ` : ""}${r.bmrMethod}${r.goalW && !w.goalWeightKg ? ` · goal ≈ ${r.goalW} kg` : ""}</div>
-        ${!r.safe ? `<div class="goal-warn">⚠️ Faster than the safe limit — calories may be capped on save.</div>` : ""}`;
+        ${!r.safe ? `<div class="goal-warn"><i class="fa-solid fa-triangle-exclamation"></i> Faster than the safe limit — calories may be capped on save.</div>` : ""}`;
     };
 
     const bindControls = () => {
@@ -1179,8 +1182,8 @@ const App = {
     return `
       <div class="data-tools">
         <h3>Backup</h3>
-        <button type="button" id="export-btn" class="btn-ghost">⬇︎ Export data (JSON)</button>
-        <label class="btn-ghost file-label">⬆︎ Import data
+        <button type="button" id="export-btn" class="btn-ghost"><i class="fa-solid fa-download"></i> Export data (JSON)</button>
+        <label class="btn-ghost file-label"><i class="fa-solid fa-upload"></i> Import data
           <input type="file" id="import-input" accept="application/json" hidden>
         </label>
         <p class="muted small">Export regularly — clearing browser data wipes localStorage.</p>

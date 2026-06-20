@@ -201,9 +201,8 @@ label input, label select { color: var(--text); }
   background: linear-gradient(135deg, rgba(255, 106, 44, 0.18), rgba(255, 106, 44, 0.04));
   border: 1px solid rgba(255, 106, 44, 0.3); border-radius: 999px;
 }
-.streak::first-letter { font-size: 1.3rem; }
+.streak > i { color: var(--ember); font-size: 1.05em; filter: drop-shadow(0 0 8px rgba(255, 106, 44, 0.45)); }
 .streak span { color: var(--ember); }
-#edit-profile { font-size: 1.1rem; }
 
 .remaining-hero { text-align: center; margin: 18px 0 24px; }
 .remaining-hero .big {
@@ -398,11 +397,11 @@ label input, label select { color: var(--text); }
   transform: translateX(-50%) scaleX(0); transform-origin: center;
   transition: transform 0.3s var(--ease);
 }
-.nav-btn .ico { font-size: 1.3rem; filter: grayscale(1) opacity(0.65); transition: transform 0.3s var(--ease), filter 0.25s; }
+.nav-btn .ico { font-size: 1.2rem; line-height: 1; transition: transform 0.3s var(--ease); }
 .nav-btn:active .ico { transform: scale(0.85); }
 .nav-btn.active { color: var(--lime); }
 .nav-btn.active::before { transform: translateX(-50%) scaleX(1); }
-.nav-btn.active .ico { filter: none; transform: translateY(-2px) scale(1.08); }
+.nav-btn.active .ico { transform: translateY(-2px) scale(1.12); filter: drop-shadow(0 0 10px rgba(198, 241, 53, 0.5)); }
 
 /* ---------- scrollbar ---------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -489,9 +488,9 @@ label input, label select { color: var(--text); }
 .mood-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .mood-label { width: 60px; font-size: 0.85rem; color: var(--muted); }
 .faces { display: flex; gap: 6px; flex: 1; }
-.face { flex: 1; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; padding: 8px 0; font-size: 1.15rem; filter: grayscale(1) opacity(0.5); transition: filter 0.15s, border-color 0.15s, transform 0.12s; }
-.face.sel { filter: none; border-color: var(--lime); background: rgba(198,241,53,0.12); transform: scale(1.05); }
-.face.energy.on { filter: none; border-color: var(--ember); color: var(--ember); background: rgba(255,106,44,0.12); }
+.face { flex: 1; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; padding: 10px 0; font-size: 1.1rem; color: #565b54; transition: color 0.15s, border-color 0.15s, transform 0.12s, background 0.15s; }
+.face.sel { color: var(--lime); border-color: var(--lime); background: rgba(198,241,53,0.12); transform: scale(1.05); }
+.face.energy.on { color: var(--ember); border-color: var(--ember); background: rgba(255,106,44,0.12); }
 .face:active { transform: scale(0.9); }
 
 /* ---- share card (Phase 4) ---- */
@@ -804,3 +803,78 @@ label input, label select { color: var(--text); }
 .j-stat { text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 4px; }
 .j-stat b { display: block; font-family: var(--font-display); font-size: 1.05rem; color: var(--lime); }
 .j-stat span { font-size: 0.62rem; color: var(--muted); }
+
+/* ============================================================================
+   FONT AWESOME ICON SYSTEM — replaces all emoji
+   ============================================================================ */
+/* Accent-color utilities for icons */
+.i-lime  { color: var(--lime)  !important; }
+.i-ember { color: var(--ember) !important; }
+.i-cyan  { color: var(--cyan)  !important; }
+
+/* Leading icons in section headers / modal titles get a lime accent + spacing.
+   Class utilities above (.i-cyan etc.) override this thanks to higher specificity. */
+h2 > i:first-child,
+h3 > i:first-child,
+h4 > i:first-child,
+.ex-title > i:first-child,
+summary > h3 > i:first-child {
+  color: var(--lime);
+  margin-right: 9px;
+  display: inline-block;
+  min-width: 1.05em;
+  text-align: center;
+}
+.calc-h > i:first-child { margin-right: 7px; color: var(--lime); }
+
+/* Inline icons inside verdicts, pills, chips, quests keep a small trailing gap */
+.verdicts li > i:first-child,
+.goal-warn > i:first-child,
+.all-done > i:first-child,
+.rem-ok > i:first-child,
+.insight-pill > i:first-child,
+.analyzing > i:first-child,
+.xp-sub > i:first-child { margin-right: 7px; }
+
+/* Burn pill + badges */
+.burn-pill > i { margin-right: 5px; }
+.badge i { color: var(--lime); }
+
+/* Header round icon buttons (reminders / progress / settings) — bigger iOS tap target */
+.head-btns .btn-ghost.small {
+  width: 42px; height: 42px; padding: 0; border-radius: 13px;
+  display: inline-grid; place-items: center; font-size: 1.02rem; color: var(--text);
+}
+.head-btns .btn-ghost.small:hover { color: var(--lime); border-color: var(--lime); }
+
+/* Quest checkboxes */
+.q-check i { font-size: 1rem; }
+.quest .q-check { color: var(--muted); }
+.quest.done .q-check { color: var(--good); }
+
+/* Achievement icons */
+.ach-icon i { color: var(--muted); }
+.ach.got .ach-icon i { color: var(--lime); }
+
+/* Demo play button */
+.demo-btn i { font-size: 0.78rem; margin-left: 1px; }
+
+/* Share-card icons inherit the bright card text */
+.sc-icon i { color: var(--text); }
+.sc-head > i { margin-right: 6px; color: var(--ember); }
+
+/* Leaderboard header icons sit centered */
+.board th i { font-size: 0.92rem; }
+
+/* Buttons with leading icons (primary/ghost) get consistent gap */
+.btn-primary > i:first-child,
+.btn-ghost > i:first-child,
+.snap-btn > i:first-child,
+.file-label > i:first-child { margin-right: 8px; }
+
+/* Reciped/recent quick-food labels */
+.qf-label > i:first-child { margin-right: 6px; }
+
+/* iOS: respect the home-indicator + give comfortable min tap targets */
+button { min-height: 0; }
+.btn-primary, .btn-ghost, .seg, .day-btn, .chip { touch-action: manipulation; }

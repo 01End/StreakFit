@@ -6,22 +6,22 @@ const Gamify = {
   XP: { food: 5, photo: 8, workout: 40, weigh: 15, protein: 20, water: 15, steps: 12, streakDay: 10, quest: 25 },
 
   ACHIEVEMENTS: [
-    { id: "first_log", icon: "📋", name: "First Bite", desc: "Log your first food", test: (s) => s.gamify.stats.foods > 0 || s.active.foods.length > 0 },
-    { id: "streak_3", icon: "🔥", name: "On Fire", desc: "3-day streak", test: (s) => s.streak >= 3 },
-    { id: "streak_7", icon: "⚡", name: "Week Warrior", desc: "7-day streak", test: (s) => s.streak >= 7 },
-    { id: "streak_30", icon: "🏆", name: "Unstoppable", desc: "30-day streak", test: (s) => s.streak >= 30 },
-    { id: "streak_100", icon: "💯", name: "Centurion", desc: "100-day streak", test: (s) => s.streak >= 100 },
-    { id: "protein", icon: "💪", name: "Protein Locked", desc: "Hit your protein goal", test: (s, t) => s.profile && t.protein >= s.profile.proteinMinG },
-    { id: "hydrated", icon: "💧", name: "Hydrated", desc: "Reach your water goal", test: (s) => s.profile && s.active.waterMl >= s.profile.waterTargetMl },
-    { id: "workout_1", icon: "✅", name: "Sweat Started", desc: "Finish a workout", test: (s) => s.gamify.stats.workouts >= 1 },
-    { id: "workout_10", icon: "🏋️", name: "Iron Habit", desc: "Finish 10 workouts", test: (s) => s.gamify.stats.workouts >= 10 },
-    { id: "weigh_first", icon: "⚖️", name: "Stepped Up", desc: "Log your weight", test: (s) => (s.weights || []).length >= 1 },
-    { id: "lost_1", icon: "📉", name: "Down a Kilo", desc: "Lose 1 kg from your start", test: (s) => Gamify.weightLost(s) >= 1 },
-    { id: "lost_5", icon: "🎯", name: "Five Down", desc: "Lose 5 kg from your start", test: (s) => Gamify.weightLost(s) >= 5 },
-    { id: "logged_7", icon: "📅", name: "Consistent", desc: "Track 7 days", test: (s) => s.history.length >= 7 },
-    { id: "level_5", icon: "⭐", name: "Level 5", desc: "Reach level 5", test: (s) => Gamify.levelInfo(s.gamify.xp).level >= 5 },
-    { id: "level_10", icon: "🌟", name: "Level 10", desc: "Reach level 10", test: (s) => Gamify.levelInfo(s.gamify.xp).level >= 10 },
-    { id: "photo_log", icon: "📸", name: "Snap & Track", desc: "Log a meal by photo", test: (s) => s.gamify.stats.photos > 0 },
+    { id: "first_log", icon: "fa-utensils", name: "First Bite", desc: "Log your first food", test: (s) => s.gamify.stats.foods > 0 || s.active.foods.length > 0 },
+    { id: "streak_3", icon: "fa-fire", name: "On Fire", desc: "3-day streak", test: (s) => s.streak >= 3 },
+    { id: "streak_7", icon: "fa-bolt", name: "Week Warrior", desc: "7-day streak", test: (s) => s.streak >= 7 },
+    { id: "streak_30", icon: "fa-trophy", name: "Unstoppable", desc: "30-day streak", test: (s) => s.streak >= 30 },
+    { id: "streak_100", icon: "fa-crown", name: "Centurion", desc: "100-day streak", test: (s) => s.streak >= 100 },
+    { id: "protein", icon: "fa-drumstick-bite", name: "Protein Locked", desc: "Hit your protein goal", test: (s, t) => s.profile && t.protein >= s.profile.proteinMinG },
+    { id: "hydrated", icon: "fa-droplet", name: "Hydrated", desc: "Reach your water goal", test: (s) => s.profile && s.active.waterMl >= s.profile.waterTargetMl },
+    { id: "workout_1", icon: "fa-circle-check", name: "Sweat Started", desc: "Finish a workout", test: (s) => s.gamify.stats.workouts >= 1 },
+    { id: "workout_10", icon: "fa-dumbbell", name: "Iron Habit", desc: "Finish 10 workouts", test: (s) => s.gamify.stats.workouts >= 10 },
+    { id: "weigh_first", icon: "fa-scale-balanced", name: "Stepped Up", desc: "Log your weight", test: (s) => (s.weights || []).length >= 1 },
+    { id: "lost_1", icon: "fa-arrow-trend-down", name: "Down a Kilo", desc: "Lose 1 kg from your start", test: (s) => Gamify.weightLost(s) >= 1 },
+    { id: "lost_5", icon: "fa-bullseye", name: "Five Down", desc: "Lose 5 kg from your start", test: (s) => Gamify.weightLost(s) >= 5 },
+    { id: "logged_7", icon: "fa-calendar-check", name: "Consistent", desc: "Track 7 days", test: (s) => s.history.length >= 7 },
+    { id: "level_5", icon: "fa-star", name: "Level 5", desc: "Reach level 5", test: (s) => Gamify.levelInfo(s.gamify.xp).level >= 5 },
+    { id: "level_10", icon: "fa-star-of-life", name: "Level 10", desc: "Reach level 10", test: (s) => Gamify.levelInfo(s.gamify.xp).level >= 10 },
+    { id: "photo_log", icon: "fa-camera", name: "Snap & Track", desc: "Log a meal by photo", test: (s) => s.gamify.stats.photos > 0 },
   ],
 
   QUEST_POOL: [
@@ -61,7 +61,7 @@ const Gamify = {
     const before = this.levelInfo(g.xp).level;
     g.xp += amount;
     const after = this.levelInfo(g.xp).level;
-    if (after > before && App.celebrate) App.celebrate(`⭐ Level ${after}!`);
+    if (after > before && App.celebrate) App.celebrate(`Level ${after}!`);
     App.save();
     this.updateXpBar();
   },
@@ -126,7 +126,7 @@ const Gamify = {
         newly = a;
       }
     });
-    if (newly && App.celebrate) App.celebrate(`${newly.icon} ${newly.name}!`);
+    if (newly && App.celebrate) App.celebrate(`${newly.name} unlocked!`);
     App.save();
   },
 
@@ -139,13 +139,13 @@ const Gamify = {
     return `
       <div class="card xp-card">
         <div class="xp-head">
-          <span class="xp-level">⭐ Level ${li.level}</span>
-          <button id="open-ach" class="btn-ghost small">🏅 ${earned}/${this.ACHIEVEMENTS.length}</button>
+          <span class="xp-level"><i class="fa-solid fa-star i-lime"></i> Level ${li.level}</span>
+          <button id="open-ach" class="btn-ghost small"><i class="fa-solid fa-medal"></i> ${earned}/${this.ACHIEVEMENTS.length}</button>
         </div>
         <div class="xp-bar"><div class="xp-fill" style="width:${Math.round(li.pct * 100)}%"></div></div>
         <div class="muted small xp-sub">${g.xp} XP · ${li.span - li.into} to next level</div>
         <div class="quests">
-          ${q.items.map((i) => `<div class="quest ${i.done ? "done" : ""}"><span class="q-check">${i.done ? "✅" : "⬜"}</span>${i.label}</div>`).join("")}
+          ${q.items.map((i) => `<div class="quest ${i.done ? "done" : ""}"><span class="q-check"><i class="fa-${i.done ? "solid fa-square-check" : "regular fa-square"}"></i></span>${i.label}</div>`).join("")}
         </div>
       </div>`;
   },
@@ -158,15 +158,15 @@ const Gamify = {
     const g = this._g();
     const cells = this.ACHIEVEMENTS.map((a) => {
       const got = !!g.achievements[a.id];
-      return `<div class="ach ${got ? "got" : "locked"}"><div class="ach-icon">${got ? a.icon : "🔒"}</div><div class="ach-name">${a.name}</div><div class="ach-desc muted small">${a.desc}</div></div>`;
+      return `<div class="ach ${got ? "got" : "locked"}"><div class="ach-icon"><i class="fa-solid ${got ? a.icon : "fa-lock"}"></i></div><div class="ach-name">${a.name}</div><div class="ach-desc muted small">${a.desc}</div></div>`;
     }).join("");
     const earned = Object.keys(g.achievements).length;
     const modal = document.createElement("div");
     modal.id = "ach-modal";
     modal.innerHTML = `
       <div class="ex-modal-card">
-        <button class="ex-close" aria-label="close">✕</button>
-        <h3 class="ex-title">🏅 Achievements</h3>
+        <button class="ex-close" aria-label="close"><i class="fa-solid fa-xmark"></i></button>
+        <h3 class="ex-title"><i class="fa-solid fa-medal"></i> Achievements</h3>
         <p class="muted small">${earned} of ${this.ACHIEVEMENTS.length} unlocked · Level ${this.levelInfo(g.xp).level} · ${g.xp} XP</p>
         <div class="ach-grid">${cells}</div>
       </div>`;
@@ -181,7 +181,7 @@ const Gamify = {
     const li = this.levelInfo(this._g().xp);
     fill.style.width = `${Math.round(li.pct * 100)}%`;
     const lvl = document.querySelector(".xp-level");
-    if (lvl) lvl.textContent = `⭐ Level ${li.level}`;
+    if (lvl) lvl.innerHTML = `<i class="fa-solid fa-star i-lime"></i> Level ${li.level}`;
     const sub = document.querySelector(".xp-sub");
     if (sub) sub.textContent = `${this._g().xp} XP · ${li.span - li.into} to next level`;
   },
