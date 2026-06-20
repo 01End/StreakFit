@@ -478,6 +478,12 @@ label input, label select { color: var(--text); }
 .rem-time { width: 110px; margin: 0; padding: 8px; }
 .rem-del { padding: 4px 8px; }
 #rem-add { width: 100%; margin-top: 4px; }
+.rem-ok { background: rgba(92,224,143,0.1); border: 1px solid rgba(92,224,143,0.3); border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; margin-bottom: 10px; }
+.rem-ios-guide { background: rgba(69,214,240,0.07); border: 1px solid rgba(69,214,240,0.25); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+.rem-ios-title { font-weight: 700; margin: 0 0 6px; font-size: 0.95rem; }
+.rem-ios-steps { display: grid; gap: 10px; margin-top: 10px; }
+.ios-step { display: flex; align-items: flex-start; gap: 10px; font-size: 0.83rem; line-height: 1.4; }
+.ios-step-ico { background: var(--cyan); color: #000; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; flex-shrink: 0; margin-top: 1px; }
 
 /* ---- sleep & mood (Phase 3) ---- */
 .mood-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
