@@ -1,22 +1,20 @@
 /* StreakFit — Social tab: serverless challenges.
- * Encodes today's snapshot into a compact base64 token (or shareable URL #c=…),
- * and decodes a friend's token to render an offline side-by-side leaderboard.
+ * Encodes a richer snapshot (streak, level, weight lost, workouts, budget) into a base64
+ * token / URL, decodes a friend's token for an offline side-by-side leaderboard, and
+ * renders a shareable progress card. No server — all client-side.
  */
 function mySnapshot() {
   const t = App.dayTotals();
   const p = App.state.profile || {};
-  return {
-    n: "You",
-    s: App.state.streak,
-    st: App.state.active.steps || 0,
-    k: Math.round(t.kcal),
-    t: p.calorieTarget || 0,
-    d: App.state.active.date,
-  };
+  const g = App.state.gamify || { xp: 0 };
+  const lv = window.Gamify ? Gamify.levelInfo(g.xp || 0).level : 1;
+  const ws = (App.state.weights || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const wl = ws.length >= 2 ? +(ws[0].kg - ws[ws.length - 1].kg).toFixed(1) : 0;
+  const wo = (g.stats && g.stats.workouts) || 0;
+  return { n: "You", s: App.state.streak, st: App.state.active.steps || 0, k: Math.round(t.kcal), t: p.calorieTarget || 0, d: App.state.active.date, lv, wl, wo };
 }
 
 function encodeToken(snap) {
-  // encodeURIComponent first so non-ASCII names survive btoa.
   return btoa(encodeURIComponent(JSON.stringify(snap)));
 }
 
@@ -33,38 +31,51 @@ function decodeToken(token) {
 function budgetStatus(snap) {
   if (!snap.t) return { label: "—", cls: "" };
   const diff = snap.t - snap.k;
-  return diff >= 0
-    ? { label: `${diff} under`, cls: "v-good" }
-    : { label: `${Math.abs(diff)} over`, cls: "v-bad" };
+  return diff >= 0 ? { label: `${diff} under`, cls: "v-good" } : { label: `${Math.abs(diff)} over`, cls: "v-bad" };
 }
 
 function renderLeaderboard(friend) {
   const me = mySnapshot();
   if (friend) friend.n = friend.n || "Friend";
   const rows = [me, friend].filter(Boolean);
-  // Rank by streak desc, then steps desc.
-  rows.sort((a, b) => b.s - a.s || b.st - a.st);
+  // Rank by streak desc, then level, then weight lost.
+  rows.sort((a, b) => b.s - a.s || (b.lv || 0) - (a.lv || 0) || (b.wl || 0) - (a.wl || 0));
 
   const board = document.getElementById("leaderboard");
   board.innerHTML = `
     <table class="board">
-      <thead><tr><th></th><th>🔥 Streak</th><th>👟 Steps</th><th>Budget</th></tr></thead>
+      <thead><tr><th></th><th>🔥</th><th>⭐ Lvl</th><th>📉 kg</th><th>💪 W/o</th></tr></thead>
       <tbody>
         ${rows
           .map((r, i) => {
-            const b = budgetStatus(r);
             const medal = i === 0 ? "🥇" : "🥈";
             return `<tr class="${r.n === "You" ? "me-row" : ""}">
               <td>${medal} ${r.n}</td>
               <td>${r.s}</td>
-              <td>${r.st.toLocaleString()}</td>
-              <td class="${b.cls}">${b.label}</td>
+              <td>${r.lv || 1}</td>
+              <td class="${(r.wl || 0) > 0 ? "v-good" : ""}">${r.wl || 0}</td>
+              <td>${r.wo || 0}</td>
             </tr>`;
           })
           .join("")}
       </tbody>
     </table>
     ${friend ? "" : `<p class="muted small">Paste a friend's token to compare.</p>`}`;
+}
+
+function shareCardHTML() {
+  const s = mySnapshot();
+  const cell = (icon, big, label) => `<div class="sc-stat"><span class="sc-icon">${icon}</span><b>${big}</b><span class="sc-label">${label}</span></div>`;
+  return `<div id="share-card" class="share-card">
+      <div class="sc-head">🔥 StreakFit</div>
+      <div class="sc-grid">
+        ${cell("🔥", s.s, "day streak")}
+        ${cell("⭐", s.lv, "level")}
+        ${cell("📉", (s.wl > 0 ? s.wl : 0) + " kg", "lost")}
+        ${cell("💪", s.wo, "workouts")}
+      </div>
+      <div class="sc-foot">${App.prettyDate(new Date())}</div>
+    </div>`;
 }
 
 function loadSocialFromHash() {
@@ -87,8 +98,13 @@ function renderSocialTab() {
     <h2>Social Challenges</h2>
 
     <div class="card">
-      <h3>📤 Share your day</h3>
-      <p class="muted small">Send this token (or link) to a friend. No server, fully offline.</p>
+      <h3>🎴 Your card</h3>
+      ${shareCardHTML()}
+      <p class="muted small">Screenshot to share your progress, or send the token below.</p>
+    </div>
+
+    <div class="card">
+      <h3>📤 Share / challenge a friend</h3>
       <textarea id="my-token" class="token" rows="3" readonly>${myToken}</textarea>
       <div class="btn-row">
         <button id="copy-token" class="btn-primary">Copy token</button>

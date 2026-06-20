@@ -469,6 +469,35 @@ label input, label select { color: var(--text); }
 .paste-card[open] summary { margin-bottom: 10px; }
 .link-btn { background: none; border: none; color: var(--danger); padding: 0; font: inherit; text-decoration: underline; cursor: pointer; }
 
+/* ---- reminders (Phase 2) ---- */
+.rem-list { margin: 8px 0; display: grid; gap: 8px; }
+.rem-row { display: flex; align-items: center; gap: 8px; }
+.rem-row .rem-toggle { margin: 0; }
+.rem-row .rem-toggle input { width: 20px; height: 20px; }
+.rem-label { flex: 1; margin: 0; padding: 8px 10px; }
+.rem-time { width: 110px; margin: 0; padding: 8px; }
+.rem-del { padding: 4px 8px; }
+#rem-add { width: 100%; margin-top: 4px; }
+
+/* ---- sleep & mood (Phase 3) ---- */
+.mood-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.mood-label { width: 60px; font-size: 0.85rem; color: var(--muted); }
+.faces { display: flex; gap: 6px; flex: 1; }
+.face { flex: 1; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; padding: 8px 0; font-size: 1.15rem; filter: grayscale(1) opacity(0.5); transition: filter 0.15s, border-color 0.15s, transform 0.12s; }
+.face.sel { filter: none; border-color: var(--lime); background: rgba(198,241,53,0.12); transform: scale(1.05); }
+.face.energy.on { filter: none; border-color: var(--ember); color: var(--ember); background: rgba(255,106,44,0.12); }
+.face:active { transform: scale(0.9); }
+
+/* ---- share card (Phase 4) ---- */
+.share-card { background: linear-gradient(150deg, rgba(198,241,53,0.16), rgba(255,106,44,0.14)); border: 1px solid var(--border-strong); border-radius: 18px; padding: 16px; text-align: center; }
+.sc-head { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; margin-bottom: 12px; }
+.sc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.sc-stat { display: flex; flex-direction: column; align-items: center; }
+.sc-icon { font-size: 1.3rem; }
+.sc-stat b { font-family: var(--font-display); font-size: 1.1rem; }
+.sc-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.sc-foot { margin-top: 12px; font-size: 0.72rem; color: var(--muted); }
+
 /* checklist (with demo button + meta outside label) */
 .check-item { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
 .check-item:last-child { border-bottom: none; }
@@ -493,12 +522,12 @@ label input, label select { color: var(--text); }
 }
 
 /* ---- modals (exercise demo + scanner) ---- */
-#ex-modal, #scan-modal, #food-modal, #progress-modal, #calc-modal, #photo-modal, #ach-modal {
+#ex-modal, #scan-modal, #food-modal, #progress-modal, #calc-modal, #photo-modal, #ach-modal, #rem-modal {
   position: fixed; inset: 0; z-index: 150; display: flex; align-items: center; justify-content: center;
   padding: 16px; background: rgba(4, 5, 8, 0.72); backdrop-filter: blur(8px);
   opacity: 0; transition: opacity 0.25s;
 }
-#ex-modal.open, #scan-modal.open, #food-modal.open, #progress-modal.open, #calc-modal.open, #photo-modal.open, #ach-modal.open { opacity: 1; }
+#ex-modal.open, #scan-modal.open, #food-modal.open, #progress-modal.open, #calc-modal.open, #photo-modal.open, #ach-modal.open, #rem-modal.open { opacity: 1; }
 .ex-modal-card, .scan-card {
   position: relative; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
   background: linear-gradient(165deg, var(--surface-2), var(--surface));

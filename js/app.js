@@ -34,7 +34,7 @@ const App = {
 
   /* ---------- persistence ---------- */
   blankActive(date) {
-    return { date, foods: [], waterMl: 0, steps: 0, exerciseBurn: 0, workout: [], workoutTitle: "" };
+    return { date, foods: [], waterMl: 0, steps: 0, exerciseBurn: 0, workout: [], workoutTitle: "", sleepHours: null, mood: null, energy: null };
   },
 
   defaultState() {
@@ -386,6 +386,9 @@ const App = {
         metGoal: met,
         waterMl: a.waterMl,
         steps: a.steps,
+        sleepHours: a.sleepHours,
+        mood: a.mood,
+        energy: a.energy,
       });
       if (this.state.history.length > 365) this.state.history.shift();
       this.state.streak = met ? this.state.streak + 1 : 0;
@@ -678,6 +681,7 @@ const App = {
       <header class="dash-head">
         <div class="streak">🔥 <span>${this.state.streak}</span> day streak</div>
         <div class="head-btns">
+          <button id="open-reminders" class="btn-ghost small">🔔</button>
           <button id="open-progress" class="btn-ghost small">📈</button>
           <button id="edit-profile" class="btn-ghost small">⚙︎</button>
         </div>
@@ -728,6 +732,13 @@ const App = {
         <p class="muted small">Steps add to your daily max — move more, eat more.</p>
       </div>
 
+      <div class="card">
+        <h3>🌙 Sleep & Mood</h3>
+        <label>Hours slept<input id="sleep-input" class="steps" type="number" step="0.5" min="0" max="24" placeholder="e.g. 7.5" value="${this.state.active.sleepHours ?? ""}"></label>
+        <div class="mood-row"><span class="mood-label">Mood</span><div class="faces" id="mood-faces">${[1, 2, 3, 4, 5].map((n) => `<button class="face ${this.state.active.mood === n ? "sel" : ""}" data-m="${n}">${["😞", "😕", "😐", "🙂", "😄"][n - 1]}</button>`).join("")}</div></div>
+        <div class="mood-row"><span class="mood-label">Energy</span><div class="faces" id="energy-faces">${[1, 2, 3, 4, 5].map((n) => `<button class="face energy ${this.state.active.energy >= n ? "on" : ""}" data-e="${n}">⚡</button>`).join("")}</div></div>
+      </div>
+
       <div class="card macros-mini">
         <h3>Macros & micros today</h3>
         <div class="macro-row"><span>Carbs</span><span>${Math.round(t.carbs)} / ${p.carbTargetG} g</span></div>
@@ -740,6 +751,7 @@ const App = {
 
     document.getElementById("edit-profile").addEventListener("click", () => this.renderProfileForm(true));
     document.getElementById("open-progress").addEventListener("click", () => this.renderProgress());
+    document.getElementById("open-reminders").addEventListener("click", () => { if (window.Reminders) Reminders.open(); });
     document.getElementById("adjust-goal").addEventListener("click", () => this.renderCalculator());
     if (window.Gamify) Gamify.bindDashboard();
 
@@ -757,6 +769,19 @@ const App = {
 
     const stepsEl = document.getElementById("steps-input");
     stepsEl.addEventListener("change", (e) => this.setSteps(e.target.value));
+
+    const sleepEl = document.getElementById("sleep-input");
+    sleepEl.addEventListener("change", (e) => { this.state.active.sleepHours = e.target.value ? +e.target.value : null; this.save(); });
+    document.getElementById("mood-faces").addEventListener("click", (e) => {
+      const b = e.target.closest(".face"); if (!b) return;
+      this.state.active.mood = +b.dataset.m; this.save();
+      document.querySelectorAll("#mood-faces .face").forEach((f) => f.classList.toggle("sel", +f.dataset.m === this.state.active.mood));
+    });
+    document.getElementById("energy-faces").addEventListener("click", (e) => {
+      const b = e.target.closest(".face"); if (!b) return;
+      this.state.active.energy = +b.dataset.e; this.save();
+      document.querySelectorAll("#energy-faces .face").forEach((f) => f.classList.toggle("on", +f.dataset.e <= this.state.active.energy));
+    });
   },
 
   /* ---------- "you've come this far" recap ---------- */
@@ -766,6 +791,9 @@ const App = {
     const workouts = (this.state.gamify && this.state.gamify.stats && this.state.gamify.stats.workouts) || 0;
     const days = this.state.history.length;
     const li = window.Gamify ? Gamify.levelInfo(this.state.gamify.xp || 0) : { level: 1 };
+    const sleeps = this.state.history.filter((h) => h.sleepHours).map((h) => h.sleepHours);
+    if (this.state.active.sleepHours) sleeps.push(this.state.active.sleepHours);
+    const avgSleep = sleeps.length ? +(sleeps.reduce((a, b) => a + b, 0) / sleeps.length).toFixed(1) : null;
     const stat = (big, label) => `<div class="j-stat"><b>${big}</b><span>${label}</span></div>`;
     return `<div class="prog-section journey">
         <h4>You've come this far 💪</h4>
@@ -775,6 +803,7 @@ const App = {
           ${stat(workouts, "workouts")}
           ${stat(days, "days tracked")}
           ${stat("⭐ " + li.level, "level")}
+          ${stat(avgSleep ? avgSleep + "h" : "—", "avg sleep")}
         </div>
       </div>`;
   },
@@ -1132,6 +1161,7 @@ const App = {
   init() {
     this.load();
     this.checkRollover();
+    if (window.Reminders) Reminders.start();
 
     document.querySelectorAll(".nav-btn").forEach((b) =>
       b.addEventListener("click", () => this.switchTab(b.dataset.tab))
