@@ -1,0 +1,13 @@
+{
+  "name": "streakfit-push",
+  "main": "worker.js",
+  "compatibility_date": "2025-06-01",
+
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+
+  "kv_namespaces": [
+    { "binding": "KV", "id": "PASTE_YOUR_KV_ID_HERE" }
+  ]
+}
