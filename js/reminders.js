@@ -1,8 +1,10 @@
 /* StreakFit — reminders & nudges.
- * Uses a service worker (sw.js) for proper OS notifications on Android + iOS PWA.
- * iOS requires the app to be added to the Home Screen (Safari → Share → Add to Home Screen).
- * iOS 16.4+ supports Web Push from PWA home-screen installs; older iOS gets in-app toasts only.
- * Falls back to plain Notification API (foreground tab), then in-app toast.
+ *
+ * Two notification modes:
+ *  A. In-app / backgrounded  — service worker showNotification (no server needed).
+ *     Works on Android + iOS 16.4+ PWA while the app is open or in recent apps.
+ *  B. Fully-closed push      — Cloudflare Worker sends a real Web Push.
+ *     Works even when the app is completely closed. Requires the push-worker to be deployed.
  */
 const Reminders = {
   DEFAULTS: [
@@ -26,38 +28,33 @@ const Reminders = {
     if (typeof Notification === "undefined") return "unsupported";
     try { return await Notification.requestPermission(); } catch (e) { return "denied"; }
   },
-
-  /* Detect platform context. */
   isIOS() {
     return /iP(hone|ad|od)/.test(navigator.userAgent) ||
            (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   },
   isPWA() {
-    // true when launched from iOS/Android home screen or Android TWA
     return window.matchMedia("(display-mode: standalone)").matches ||
            window.navigator.standalone === true;
   },
 
+  /* ── Mode A: fire while app is open / backgrounded ─────────────────────── */
   fire(r) {
     const granted = typeof Notification !== "undefined" && Notification.permission === "granted";
+    if (granted && navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: "NOTIFY", body: r.label, tag: r.id });
+      return;
+    }
     if (granted) {
-      // Service worker showNotification — works on Android backgrounded + iOS PWA (16.4+).
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: "NOTIFY", body: r.label, tag: r.id });
-        return;
-      }
-      // Fallback: plain Notification API (requires foreground tab).
       try { new Notification("StreakFit", { body: r.label }); return; } catch (e) {}
     }
     if (App.celebrateMini) App.celebrateMini("🔔 " + r.label);
   },
-
   tick() {
     const now = new Date();
-    const cur = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+    const cur = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
     this.list().forEach((r) => {
       if (!r.enabled || r.time !== cur) return;
-      const k = App.todayStr() + "|" + r.id + "|" + r.time;
+      const k = `${App.todayStr()}|${r.id}|${r.time}`;
       if (!this._fired[k]) { this._fired[k] = 1; this.fire(r); }
     });
   },
@@ -67,12 +64,74 @@ const Reminders = {
     this._timer = setInterval(() => this.tick(), 30000);
   },
 
-  /* ---------- modal UI ---------- */
+  /* ── Mode B: server push helpers ────────────────────────────────────────── */
+  workerUrl() {
+    return (App.state.settings && App.state.settings.pushWorkerUrl) || "";
+  },
+  deviceId() {
+    const s = App.state.settings;
+    if (!s.pushDeviceId) {
+      s.pushDeviceId = (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now().toString(36);
+      App.save();
+    }
+    return s.pushDeviceId;
+  },
+
+  async getPushSubscription(workerUrl) {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (sub) return sub;
+
+    // Fetch VAPID public key from the worker
+    const vapidPublic = await fetch(`${workerUrl}/vapid-public`).then((r) => {
+      if (!r.ok) throw new Error(`Worker returned ${r.status}`);
+      return r.text();
+    });
+
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: vapidPublic,
+    });
+    return sub;
+  },
+
+  async syncToWorker(workerUrl) {
+    if (!workerUrl) return;
+    const sub = await this.getPushSubscription(workerUrl);
+    const tzOffset = -new Date().getTimezoneOffset(); // minutes east of UTC
+    const res = await fetch(`${workerUrl}/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceId: this.deviceId(),
+        subscription: sub.toJSON(),
+        reminders: this.list(),
+        tzOffset,
+      }),
+    });
+    if (!res.ok) throw new Error(`Sync failed: ${res.status}`);
+  },
+
+  async sendTestPush(workerUrl) {
+    const res = await fetch(`${workerUrl}/test-push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: this.deviceId() }),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(text);
+    return text;
+  },
+
+  /* ── Modal UI ───────────────────────────────────────────────────────────── */
   open() {
-    const perm   = this.permission();
-    const ios    = this.isIOS();
-    const pwa    = this.isPWA();
-    const hasSW  = "serviceWorker" in navigator;
+    const perm    = this.permission();
+    const ios     = this.isIOS();
+    const pwa     = this.isPWA();
+    const hasSW   = "serviceWorker" in navigator;
+    const wUrl    = this.workerUrl();
 
     const rows = this.list()
       .map((r, i) => `
@@ -84,36 +143,45 @@ const Reminders = {
         </div>`)
       .join("");
 
+    // ── Permission / iOS guidance block ──
     let permLine;
-
     if (perm === "granted") {
-      permLine = `<div class="rem-ok">✅ Notifications are on — you'll get phone alerts at the times below.</div>`;
-
+      permLine = `<div class="rem-ok">✅ Notifications are on.</div>`;
     } else if (ios && !pwa) {
-      // iOS in regular Safari tab — must add to home screen first.
       permLine = `
         <div class="rem-ios-guide">
-          <p class="rem-ios-title">📱 Add to Home Screen to enable notifications</p>
-          <p class="muted small">iOS only allows notifications from installed apps. Tap <b>Share</b> in Safari then <b>"Add to Home Screen"</b>, open StreakFit from your home screen, then come back here to enable notifications.</p>
+          <p class="rem-ios-title">📱 Add to Home Screen first</p>
+          <p class="muted small">iOS only allows notifications from installed apps.</p>
           <div class="rem-ios-steps">
-            <div class="ios-step"><span class="ios-step-ico">1</span><span>Tap <b>Share</b> (the box ↑ with an arrow) in Safari's toolbar</span></div>
-            <div class="ios-step"><span class="ios-step-ico">2</span><span>Scroll down → tap <b>"Add to Home Screen"</b></span></div>
+            <div class="ios-step"><span class="ios-step-ico">1</span><span>Tap <b>Share ↑</b> in Safari</span></div>
+            <div class="ios-step"><span class="ios-step-ico">2</span><span>Tap <b>"Add to Home Screen"</b></span></div>
             <div class="ios-step"><span class="ios-step-ico">3</span><span>Open StreakFit from your home screen</span></div>
             <div class="ios-step"><span class="ios-step-ico">4</span><span>Come back here → tap Enable</span></div>
           </div>
         </div>`;
-
-    } else if (perm === "unsupported" || (ios && !hasSW)) {
-      permLine = `<p class="muted small">Notifications aren't supported in this browser — you'll still get in-app nudges.</p>`;
-
+    } else if (perm === "unsupported" || (!hasSW)) {
+      permLine = `<p class="muted small">Notifications aren't supported in this browser.</p>`;
     } else {
-      // Android, or iOS PWA (16.4+) — show the enable button.
       const iosNote = ios ? `<p class="muted small">Requires iOS 16.4 or newer.</p>` : "";
       permLine = `
         <button id="rem-perm" class="btn-primary" style="margin-bottom:6px">🔔 Enable phone notifications</button>
-        ${iosNote}
-        <p class="muted small">Tap above — StreakFit will send real phone alerts at the times you set.</p>`;
+        ${iosNote}`;
     }
+
+    // ── Server push block (Mode B) ──
+    const serverSection = hasSW ? `
+      <details class="advanced" ${wUrl ? "open" : ""} style="margin-top:14px">
+        <summary style="cursor:pointer;font-size:0.85rem;color:var(--muted)">🌐 Background push (works when app is closed)</summary>
+        <p class="muted small" style="margin-top:8px">Paste your Cloudflare Worker URL to get notifications even when StreakFit is fully closed.</p>
+        <div class="search-row" style="gap:8px;margin-top:8px">
+          <input id="push-url-input" class="search" placeholder="https://streakfit-push.yourname.workers.dev" value="${wUrl}" style="font-size:0.8rem">
+        </div>
+        <div class="btn-row" style="margin-top:8px;gap:8px">
+          <button id="push-connect" class="btn-primary" style="flex:1">Connect &amp; sync</button>
+          <button id="push-test" class="btn-ghost" style="flex:1" ${wUrl ? "" : "disabled"}>Send test</button>
+        </div>
+        <p id="push-status" class="muted small" style="margin-top:6px"></p>
+      </details>` : "";
 
     const modal = document.createElement("div");
     modal.id = "rem-modal";
@@ -122,21 +190,28 @@ const Reminders = {
         <button class="ex-close" aria-label="close">✕</button>
         <h3 class="ex-title">🔔 Reminders</h3>
         ${permLine}
-        <div class="rem-list">${rows}</div>
+        <div class="rem-list" style="margin-top:12px">${rows}</div>
         <button id="rem-add" class="btn-ghost">+ Add reminder</button>
-        <p class="muted small">Notifications fire while the app is open or backgrounded. Fully closing the app stops them (that needs a server).</p>
+        ${serverSection}
+        <p class="muted small" style="margin-top:10px">While the app is open or backgrounded, notifications fire without a server.</p>
       </div>`;
     document.body.appendChild(modal);
     requestAnimationFrame(() => modal.classList.add("open"));
     modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest(".ex-close")) modal.remove(); });
 
+    // Enable notifications button
     const permBtn = modal.querySelector("#rem-perm");
     if (permBtn) permBtn.addEventListener("click", async () => {
       const result = await this.requestPermission();
       if (result === "granted") App.celebrateMini("🔔 Notifications enabled!");
-      modal.remove();
-      this.open();
+      modal.remove(); this.open();
     });
+
+    // Reminder list changes → save + sync
+    const syncIfConnected = () => {
+      const url = this.workerUrl();
+      if (url && this.permission() === "granted") this.syncToWorker(url).catch(() => {});
+    };
 
     modal.querySelector(".rem-list").addEventListener("input", (e) => {
       const el = e.target, i = +el.dataset.i, r = this.list()[i];
@@ -144,6 +219,7 @@ const Reminders = {
       else if (el.type === "time") r.time = el.value;
       else r.label = el.value;
       App.save();
+      if (el.type !== "text") syncIfConnected();
     });
     modal.querySelector(".rem-list").addEventListener("click", (e) => {
       const del = e.target.closest(".rem-del");
@@ -152,6 +228,49 @@ const Reminders = {
     modal.querySelector("#rem-add").addEventListener("click", () => {
       this.list().push({ id: "r" + Date.now(), label: "New reminder", time: "12:00", enabled: true });
       App.save(); modal.remove(); this.open();
+    });
+
+    // Server push controls
+    const connectBtn = modal.querySelector("#push-connect");
+    const testBtn    = modal.querySelector("#push-test");
+    const statusEl   = modal.querySelector("#push-status");
+    const urlInput   = modal.querySelector("#push-url-input");
+
+    if (connectBtn) connectBtn.addEventListener("click", async () => {
+      const url = (urlInput.value || "").trim().replace(/\/$/, "");
+      if (!url) return;
+      statusEl.textContent = "Connecting…";
+      statusEl.style.color = "var(--muted)";
+      try {
+        if (this.permission() !== "granted") {
+          const r = await this.requestPermission();
+          if (r !== "granted") { statusEl.textContent = "Notification permission denied."; return; }
+        }
+        await this.syncToWorker(url);
+        App.state.settings.pushWorkerUrl = url;
+        App.save();
+        statusEl.textContent = "✅ Connected! Your reminder schedule is synced.";
+        statusEl.style.color = "var(--good)";
+        if (testBtn) testBtn.disabled = false;
+      } catch (err) {
+        statusEl.textContent = "❌ " + err.message;
+        statusEl.style.color = "var(--danger)";
+      }
+    });
+
+    if (testBtn) testBtn.addEventListener("click", async () => {
+      const url = this.workerUrl();
+      if (!url) return;
+      statusEl.textContent = "Sending test…";
+      statusEl.style.color = "var(--muted)";
+      try {
+        await this.sendTestPush(url);
+        statusEl.textContent = "✅ Test sent — you should get a notification shortly!";
+        statusEl.style.color = "var(--good)";
+      } catch (err) {
+        statusEl.textContent = "❌ " + err.message;
+        statusEl.style.color = "var(--danger)";
+      }
     });
   },
 };
