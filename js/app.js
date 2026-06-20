@@ -115,13 +115,41 @@ const App = {
     return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
   },
 
+  // US Navy body-fat estimate from tape measurements (cm). Returns % or null.
+  navyBodyFat(p) {
+    const { gender, heightCm: h, neckCm: nk, waistCm: wa, hipCm: hp } = p;
+    if (!h || !nk || !wa) return null;
+    const log10 = Math.log10;
+    let bf;
+    if (gender === "female") {
+      if (!hp) return null;
+      bf = 495 / (1.29579 - 0.35004 * log10(wa + hp - nk) + 0.22100 * log10(h)) - 450;
+    } else {
+      if (wa - nk <= 0) return null;
+      bf = 495 / (1.0324 - 0.19077 * log10(wa - nk) + 0.15456 * log10(h)) - 450;
+    }
+    return bf > 0 && bf < 70 ? +bf.toFixed(1) : null;
+  },
+  // Effective body fat: explicit value, else the Navy estimate, else null.
+  effectiveBodyFat(p) {
+    if (p.bodyFatPct) return +p.bodyFatPct;
+    return this.navyBodyFat(p);
+  },
+
   /* ---------- TDEE / macro engine (goal-timeframe driven) ---------- */
   computeTargets(profile) {
     const { weightKg: kg, heightCm: cm, age, gender, activityLevel } = profile;
-    const bmr =
-      gender === "female"
-        ? 10 * kg + 6.25 * cm - 5 * age - 161
-        : 10 * kg + 6.25 * cm - 5 * age + 5;
+    // Katch-McArdle (lean-mass based) when body fat is known — more accurate; else Mifflin-St Jeor.
+    const bf = this.effectiveBodyFat(profile);
+    let bmr, bmrMethod;
+    if (bf != null && bf > 0 && bf < 70) {
+      const lean = kg * (1 - bf / 100);
+      bmr = 370 + 21.6 * lean;
+      bmrMethod = "Katch-McArdle";
+    } else {
+      bmr = gender === "female" ? 10 * kg + 6.25 * cm - 5 * age - 161 : 10 * kg + 6.25 * cm - 5 * age + 5;
+      bmrMethod = "Mifflin-St Jeor";
+    }
     const tdee = bmr * (this.ACTIVITY_FACTORS[activityLevel] || 1.2);
     const floor = gender === "female" ? 1200 : 1500;
     const goalType = profile.goalType || "lose";
@@ -165,6 +193,8 @@ const App = {
 
     return {
       bmr: Math.round(bmr),
+      bmrMethod,
+      bodyFat: bf,
       tdee: Math.round(tdee),
       goalType,
       requestedDeficit,
@@ -845,27 +875,41 @@ const App = {
       goalWeightKg: p.goalWeightKg || null,
       goalWeeks: p.goalWeeks || null,
       manualKcal: null,
+      bodyFatPct: p.bodyFatPct || null,
+      neckCm: p.neckCm || null,
+      waistCm: p.waistCm || null,
+      hipCm: p.hipCm || null,
+      targetBodyFat: p.targetBodyFat || null,
     };
 
     const preview = () => {
-      const temp = { ...p, goalType: w.goalType, ratePct: w.ratePct, goalWeightKg: w.goalWeightKg, goalWeeks: w.goalWeeks };
+      const temp = { ...p, goalType: w.goalType, ratePct: w.ratePct, goalWeeks: w.goalWeeks,
+        bodyFatPct: w.bodyFatPct, neckCm: w.neckCm, waistCm: w.waistCm, hipCm: w.hipCm };
+      const effBf = this.effectiveBodyFat(temp);
+      // implied goal weight from target body-fat % (lean mass held constant)
+      let goalW = w.goalWeightKg || null;
+      if (!goalW && w.targetBodyFat && effBf != null) {
+        const lean = p.weightKg * (1 - effBf / 100);
+        goalW = +(lean / (1 - w.targetBodyFat / 100)).toFixed(1);
+      }
+      temp.goalWeightKg = goalW;
       const t = this.computeTargets(temp);
       let target = t.calorieTarget;
       if (w.goalType !== "maintain" && w.manualKcal) target = w.manualKcal;
       const gap = target - t.tdee; // <0 deficit, >0 surplus
       const weeklyKg = (Math.abs(gap) * 7) / this.KCAL_PER_KG_FAT;
       let eta = null;
-      if (w.goalType !== "maintain" && w.goalWeightKg && weeklyKg > 0) {
+      if (w.goalType !== "maintain" && goalW && weeklyKg > 0) {
         const losing = w.goalType === "lose";
-        const ok = losing ? w.goalWeightKg < p.weightKg : w.goalWeightKg > p.weightKg;
+        const ok = losing ? goalW < p.weightKg : goalW > p.weightKg;
         if (ok) {
-          const weeks = Math.ceil(Math.abs(p.weightKg - w.goalWeightKg) / weeklyKg);
+          const weeks = Math.ceil(Math.abs(p.weightKg - goalW) / weeklyKg);
           eta = { weeks, date: this.prettyDate(this.addDays(new Date(), weeks * 7)) };
         }
       }
       const maxSafe = p.weightKg * (w.goalType === "gain" ? 0.005 : 0.01);
       const safe = w.goalType === "maintain" || weeklyKg <= maxSafe + 0.001;
-      return { tdee: t.tdee, target, gap, weeklyKg: +weeklyKg.toFixed(2), eta, safe };
+      return { tdee: t.tdee, target, gap, weeklyKg: +weeklyKg.toFixed(2), eta, safe, effBf, bmrMethod: t.bmrMethod, goalW };
     };
 
     const modal = document.createElement("div");
@@ -879,6 +923,16 @@ const App = {
         <h3 class="ex-title">⚖️ Calorie Calculator</h3>
         <div class="seg-row">${gtBtns}</div>
         <div id="calc-controls"></div>
+        <details class="advanced bodycomp"><summary>Body composition (optional — improves accuracy)</summary>
+          <div class="grid-2">
+            <label>Body fat %<input id="bc-bf" type="number" step="0.1" placeholder="if known" value="${w.bodyFatPct ?? ""}"></label>
+            <label>Target body fat %<input id="bc-tbf" type="number" step="0.1" placeholder="optional" value="${w.targetBodyFat ?? ""}"></label>
+            <label>Neck (cm)<input id="bc-neck" type="number" step="0.1" placeholder="for estimate" value="${w.neckCm ?? ""}"></label>
+            <label>Waist (cm)<input id="bc-waist" type="number" step="0.1" placeholder="for estimate" value="${w.waistCm ?? ""}"></label>
+            <label>Hip (cm, women)<input id="bc-hip" type="number" step="0.1" placeholder="women only" value="${w.hipCm ?? ""}"></label>
+          </div>
+          <p class="muted small">Body fat % → more accurate TDEE (Katch-McArdle). Neck/Waist(/Hip) → US-Navy estimate. Target body fat % → sets your goal weight.</p>
+        </details>
         <div id="calc-readout" class="calc-readout"></div>
         <button id="calc-save" class="btn-primary">Save</button>
       </div>`;
@@ -919,6 +973,7 @@ const App = {
         <div class="calc-main">${r.target} <span class="muted">kcal/day</span></div>
         <div class="muted small">TDEE ${r.tdee} · ${gapTxt}</div>
         ${w.goalType !== "maintain" ? `<div class="muted small">~${r.weeklyKg} kg/wk${r.eta ? ` · ${r.eta.weeks} wk → ${r.eta.date}` : ""}</div>` : ""}
+        <div class="muted small">${r.effBf != null ? `Body fat ${r.effBf}% · ` : ""}${r.bmrMethod}${r.goalW && !w.goalWeightKg ? ` · goal ≈ ${r.goalW} kg` : ""}</div>
         ${!r.safe ? `<div class="goal-warn">⚠️ Faster than the safe limit — calories may be capped on save.</div>` : ""}`;
     };
 
@@ -938,12 +993,32 @@ const App = {
       modal.querySelectorAll(".seg").forEach((x) => x.classList.toggle("active", x === b));
       renderControls(); updateReadout();
     }));
+    // body-composition inputs (static in markup)
+    const bcMap = { "bc-bf": "bodyFatPct", "bc-tbf": "targetBodyFat", "bc-neck": "neckCm", "bc-waist": "waistCm", "bc-hip": "hipCm" };
+    Object.keys(bcMap).forEach((id) => {
+      const el = modal.querySelector("#" + id);
+      if (el) el.addEventListener("input", () => { w[bcMap[id]] = +el.value || null; updateReadout(); });
+    });
     modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest(".ex-close")) modal.remove(); });
     modal.querySelector("#calc-save").addEventListener("click", () => {
       p.goalType = w.goalType;
       p.ratePct = w.ratePct;
-      p.goalWeightKg = w.goalWeightKg;
       p.goalWeeks = w.goalWeeks;
+      // body composition (optional)
+      p.bodyFatPct = w.bodyFatPct || null;
+      p.neckCm = w.neckCm || null;
+      p.waistCm = w.waistCm || null;
+      p.hipCm = w.hipCm || null;
+      p.targetBodyFat = w.targetBodyFat || null;
+      // goal weight: explicit, else derived from target body-fat %
+      if (w.goalWeightKg) {
+        p.goalWeightKg = w.goalWeightKg;
+      } else if (w.targetBodyFat) {
+        const eff = this.effectiveBodyFat(p);
+        p.goalWeightKg = eff != null ? +((p.weightKg * (1 - eff / 100)) / (1 - w.targetBodyFat / 100)).toFixed(1) : p.goalWeightKg;
+      } else {
+        p.goalWeightKg = w.goalWeightKg;
+      }
       const t = this.computeTargets(p);
       Object.assign(p, {
         bmr: t.bmr, tdee: t.tdee, calorieTarget: t.calorieTarget, proteinMinG: t.proteinMinG,

@@ -187,3 +187,86 @@ function exerciseFigure(anim) {
   const cfg = POSES[anim] || POSES.squat;
   return cfg.view === "front" ? figFront(cfg, anim) : figSide(cfg, anim);
 }
+
+/* ============================ multi-frame static demo ============================
+ * Instead of one looping figure, show the movement as 3 labelled still frames
+ * (Start → Middle → End) interpolated from the pose A→B. Fully offline. */
+function _lerpJoint(A, B, j, e) {
+  return [A[j][0] + (B[j][0] - A[j][0]) * e, A[j][1] + (B[j][1] - A[j][1]) * e];
+}
+function staticFigureSVG(anim, e) {
+  const cfg = POSES[anim] || POSES.squat;
+  const P = (j) => _lerpJoint(cfg.A, cfg.B, j, e);
+  const line = (a, b) => { const p1 = P(a), p2 = P(b); return `<line class="bone${a === "S" && b === "P" ? " spine" : ""}" x1="${p1[0].toFixed(1)}" y1="${p1[1].toFixed(1)}" x2="${p2[0].toFixed(1)}" y2="${p2[1].toFixed(1)}"></line>`; };
+  const head = P("head");
+  if (cfg.view === "front") {
+    const bones = [["S", "P"], ["S", "EL"], ["EL", "HL"], ["S", "ER"], ["ER", "HR"], ["P", "KL"], ["KL", "FL"], ["P", "KR"], ["KR", "FR"]];
+    return `<svg class="ex-fig" viewBox="0 0 120 138"><line class="ex-ground" x1="16" y1="122" x2="104" y2="122"></line>${bones.map((b) => line(b[0], b[1])).join("")}<circle class="head" r="10" cx="${head[0].toFixed(1)}" cy="${head[1].toFixed(1)}"></circle></svg>`;
+  }
+  const groundY = cfg.groundY != null ? cfg.groundY : 122;
+  const bones = [["S", "P"], ["P", "K"], ["K", "F"], ["S", "E"], ["E", "H"]];
+  if (cfg.A.K2) bones.push(["P", "K2"], ["K2", "F2"]);
+  const bar = cfg.bar ? `<line class="ex-bar" x1="28" y1="14" x2="102" y2="14"></line>` : "";
+  return `<svg class="ex-fig" viewBox="0 0 140 140"><line class="ex-ground" x1="14" y1="${groundY}" x2="126" y2="${groundY}"></line>${bar}${bones.map((b) => line(b[0], b[1])).join("")}<circle class="head" r="10" cx="${head[0].toFixed(1)}" cy="${head[1].toFixed(1)}"></circle></svg>`;
+}
+function exerciseFrames(anim) {
+  const frames = [["Start", 0], ["Middle", 0.5], ["End", 1]];
+  return `<div class="ex-frames">${frames.map(([lbl, e]) => `<div class="ex-frame">${staticFigureSVG(anim, e)}<span class="ex-frame-label">${lbl}</span></div>`).join("")}</div>`;
+}
+
+/* Generic, pattern-level how-to so EVERY exercise (even imported ones) gets useful cues. */
+const ANIM_CUES = {
+  squat: ["Feet about shoulder-width", "Sit your hips back and down", "Knees track over toes, chest up", "Drive through your heels to stand"],
+  lunge: ["Step into a long stance", "Lower until the front thigh is parallel", "Keep your torso upright", "Push through the front heel"],
+  pushup: ["Hands under/just wider than shoulders", "Body in one straight line", "Lower under control", "Press up and squeeze"],
+  press: ["Brace your core", "Press the weight overhead", "Don't lean back", "Lower slowly to the shoulders"],
+  curl: ["Elbows pinned to your sides", "Curl up without swinging", "Squeeze at the top", "Lower slowly to full extension"],
+  row: ["Hinge with a flat back", "Pull toward your waist", "Squeeze the shoulder blades", "Control the way down"],
+  pullup: ["Grip the bar firmly", "Pull your chest toward it", "Drive your elbows down", "Lower to a full hang"],
+  hinge: ["Soft knees, push hips back", "Keep a flat back", "Feel the hamstrings stretch", "Drive hips forward to finish"],
+  calf: ["Rise onto the balls of your feet", "Pause at the top", "Lower for a full stretch", "Keep it controlled"],
+  plank: ["Brace abs and glutes", "Straight line head to heels", "Don't let the hips sag", "Breathe and hold"],
+  jacks: ["Move explosively", "Land soft on the balls of your feet", "Keep a steady rhythm", "Stay light and quick"],
+  knees: ["Quick, controlled tempo", "Engage your core", "Full range each rep", "Keep breathing"],
+  burpee: ["Squat and plant your hands", "Kick back to a plank", "Hop the feet back in", "Jump up explosively"],
+};
+
+/* Guess a movement pattern (anim key) from any exercise name. Specific → generic. */
+function guessAnim(name) {
+  const n = (name || "").toLowerCase();
+  const has = (...ws) => ws.some((w) => n.includes(w));
+  if (has("burpee")) return "burpee";
+  if (has("tricep", "skull", "pushdown", "dip")) return "pushup"; // arm-extension presses
+  if (has("pull-up", "pullup", "pull up", "chin-up", "chinup", "chin up", "pulldown", "pull-down", "pull-through")) return "pullup";
+  if (has("curl")) return "curl";
+  if (has("row", "renegade", "face pull")) return "row";
+  if (has("deadlift", "rdl", "romanian", "good morning", "swing", "glute", "hip thrust", "clamshell", "kickback", "donkey", "fire hydrant")) return "hinge";
+  if (has("calf")) return "calf";
+  if (has("lunge", "split squat", "step-up", "step up", "skater", "curtsy")) return "lunge";
+  if (has("squat", "wall sit", "pistol", "plié", "plie", "relevé", "releve")) return "squat";
+  if (has("plank", "hollow", "dead bug", "bird dog", "pallof", "hold", "superman", "commando")) return "plank";
+  if (has("push-up", "pushup", "push up", "chest", "bench", "fly", "dip", "press", "thruster", "snatch", "clean", "arnold", "swimmer", "raise")) return has("calf") ? "calf" : (has("press", "overhead", "thruster", "snatch", "clean", "arnold", "raise", "swimmer") ? "press" : "pushup");
+  if (has("crunch", "sit-up", "situp", "v-up", "vup", "leg raise", "scissor", "frog", "roll", "twist", "teaser", "hundred", "bicycle", "ab ripper", "ab wheel", "in & out", "in-out")) return "knees";
+  if (has("knee", "climber", "run", "sprint", "skip", "butt kick", "march", "shuffle")) return "knees";
+  if (has("jack", "jump", "hop", "heisman", "leapfrog", "star", "dance", "salsa", "cha-cha", "grapevine", "box jump", "tuck")) return "jacks";
+  if (has("kick", "jab", "cross", "hook", "uppercut", "punch", "block", "sword", "bob", "weave", "speed bag", "shadowbox")) return "jacks";
+  if (has("yoga", "pose", "warrior", "triangle", "moon", "crow", "sun salutation", "downward", "child", "pigeon", "cobra", "cat-cow", "stretch", "savasana", "flow", "dog", "baby", "lizard", "boat", "chair")) return "plank";
+  return "squat";
+}
+
+/* Resolve any exercise spec ({key} or raw {name}) → demo + how-to. */
+function resolveExerciseSpec(e) {
+  if (e && e.key) {
+    const ex = getExercise(e.key);
+    return { name: ex.name, anim: ex.anim, cues: ex.cues, met: ex.met, exKey: e.key };
+  }
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const target = norm(e.name);
+  const matchKey = Object.keys(EXERCISES).find((k) => norm(EXERCISES[k].name) === target);
+  if (matchKey) {
+    const ex = EXERCISES[matchKey];
+    return { name: e.name, anim: ex.anim, cues: ex.cues, met: ex.met, exKey: matchKey };
+  }
+  const anim = guessAnim(e.name);
+  return { name: e.name || "Exercise", anim, cues: ANIM_CUES[anim] || [], met: 5, exKey: null };
+}

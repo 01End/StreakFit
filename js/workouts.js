@@ -35,18 +35,10 @@ function getAllPlans() {
   return [...BUILTIN_PLANS, ...((App.state && App.state.customPlans) || [])];
 }
 
-// Resolve a plan/imported exercise (which may carry a `key` OR just a raw `name`)
-// into { name, anim, cues, met, exKey } — matching known EXERCISES by name for a demo.
+// Resolve a plan/imported exercise → { name, anim, cues, met, exKey }.
+// Delegates to the smart resolver in exercises.js (name-pattern matching + cues).
 function resolveExercise(e) {
-  if (e.key) {
-    const ex = getExercise(e.key);
-    return { name: ex.name, anim: ex.anim, cues: ex.cues, met: ex.met, exKey: e.key };
-  }
-  const matchKey = Object.keys(EXERCISES).find(
-    (k) => EXERCISES[k].name.toLowerCase() === String(e.name || "").toLowerCase()
-  );
-  const ex = matchKey ? EXERCISES[matchKey] : null;
-  return { name: e.name || "Exercise", anim: ex ? ex.anim : "squat", cues: ex ? ex.cues : [], met: ex ? ex.met : 5, exKey: matchKey || null };
+  return resolveExerciseSpec(e);
 }
 
 function exerciseFromSpec(e) {
@@ -125,9 +117,9 @@ let _restTimer = null;
 
 function openExerciseDemo(item) {
   closeExerciseDemo();
-  const cues = (item.cues && item.cues.length ? item.cues : ["Move with control", "Full range of motion", "Breathe steadily"])
-    .map((c) => `<li>${c}</li>`)
-    .join("");
+  const anim = item.anim || (typeof guessAnim !== "undefined" ? guessAnim(item.name) : "squat");
+  const cueList = (item.cues && item.cues.length && item.cues) || (typeof ANIM_CUES !== "undefined" && ANIM_CUES[anim]) || ["Move with control", "Full range of motion", "Breathe steadily"];
+  const cues = cueList.map((c) => `<li>${c}</li>`).join("");
   const rest = item.rest || 60;
   const modal = document.createElement("div");
   modal.id = "ex-modal";
@@ -135,9 +127,10 @@ function openExerciseDemo(item) {
     <div class="ex-modal-card">
       <button class="ex-close" aria-label="close">✕</button>
       <h3 class="ex-title">${item.name}</h3>
-      <div class="ex-demo">${exerciseFigure(item.anim || "squat")}</div>
+      <div class="ex-demo">${exerciseFrames(anim)}</div>
       <div class="ex-meta-row">${item.sets ? `${item.sets} sets` : ""} ${item.reps ? `· ${item.reps}` : ""}</div>
-      <ul class="ex-cues">${cues}</ul>
+      <h4 class="calc-h">How to do it</h4>
+      <ol class="ex-cues">${cues}</ol>
       <div class="rest-timer">
         <div class="rest-display" id="rest-display">${rest}s</div>
         <div class="btn-row">
@@ -148,9 +141,6 @@ function openExerciseDemo(item) {
     </div>`;
   document.body.appendChild(modal);
   requestAnimationFrame(() => modal.classList.add("open"));
-
-  const fig = modal.querySelector(".ex-fig");
-  if (fig && window.startFigureAnim) startFigureAnim(fig);
 
   modal.addEventListener("click", (e) => {
     if (e.target === modal || e.target.closest(".ex-close")) closeExerciseDemo();

@@ -510,7 +510,13 @@ label input, label select { color: var(--text); }
   background: var(--surface-2); color: var(--text); border: 1px solid var(--border); z-index: 2;
 }
 .ex-title { font-family: var(--font-display); font-size: 1.3rem; margin: 0 34px 4px 0; }
-.ex-demo { background: radial-gradient(circle at 50% 42%, rgba(198, 241, 53, 0.08), transparent 70%); border-radius: 18px; margin: 4px 0 6px; }
+.ex-demo { background: radial-gradient(circle at 50% 42%, rgba(198, 241, 53, 0.08), transparent 70%); border-radius: 18px; margin: 4px 0 6px; padding: 6px 4px; }
+.ex-frames { display: flex; gap: 6px; justify-content: center; }
+.ex-frame { flex: 1; display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,0.22); border: 1px solid var(--border); border-radius: 12px; padding: 6px 2px; }
+.ex-frame .ex-fig { width: 100%; max-width: 100%; height: 110px; }
+.ex-frame-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-top: 2px; }
+.ex-cues { margin: 0 0 16px; padding-left: 20px; display: grid; gap: 6px; }
+.ex-cues li { font-size: 0.9rem; }
 .ex-meta-row { font-family: var(--font-display); color: var(--ember); font-weight: 600; margin-bottom: 10px; min-height: 1em; }
 .ex-cues { margin: 0 0 16px; padding-left: 18px; display: grid; gap: 7px; }
 .ex-cues li { font-size: 0.92rem; }
