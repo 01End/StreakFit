@@ -611,6 +611,23 @@ const App = {
     return h;
   },
 
+  // Animate a number from 0 → target (easeOutCubic). Used for the hero on tab-in.
+  animateCount(el, to, dur = 750) {
+    if (!el) return;
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || !to) { el.textContent = to; return; }
+    el.classList.add("counting");
+    const start = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - start) / dur);
+      const e = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(to * e);
+      if (p < 1) requestAnimationFrame(step);
+      else el.textContent = to;
+    };
+    requestAnimationFrame(step);
+  },
+
   renderDashboard() {
     const root = document.getElementById("view-dashboard");
     if (!this.state.profile) {
@@ -785,6 +802,12 @@ const App = {
       this.state.active.energy = +b.dataset.e; this.save();
       document.querySelectorAll("#energy-faces .face").forEach((f) => f.classList.toggle("on", +f.dataset.e <= this.state.active.energy));
     });
+
+    // Count up the hero calorie number when arriving on the dashboard.
+    if (this._heroAnim) {
+      this._heroAnim = false;
+      this.animateCount(root.querySelector(".remaining-hero .big"), consumed);
+    }
   },
 
   /* ---------- "you've come this far" recap ---------- */
@@ -1228,7 +1251,7 @@ const App = {
     document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
     document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
     document.getElementById(`view-${name}`).classList.add("active");
-    if (name === "dashboard") this.renderDashboard();
+    if (name === "dashboard") { this._heroAnim = true; this.renderDashboard(); }
     if (name === "log" && window.renderLogTab) renderLogTab();
     if (name === "workouts" && window.renderWorkoutsTab) renderWorkoutsTab();
     if (name === "social" && window.renderSocialTab) renderSocialTab();
