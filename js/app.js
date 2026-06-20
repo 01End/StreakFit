@@ -412,8 +412,14 @@ const App = {
   updateWaterUI() {
     const ml = this.state.active.waterMl;
     const targetMl = this.state.profile?.waterTargetMl || 3000;
+    const ratio = ml / targetMl;
+    const pct = Math.min(100, ratio * 100);
     const fill = document.getElementById("water-fill");
-    if (fill) fill.style.width = `${Math.min(100, (ml / targetMl) * 100).toFixed(1)}%`;
+    if (fill) fill.style.height = `${pct.toFixed(1)}%`;
+    const vessel = fill && fill.closest(".vessel");
+    if (vessel) vessel.classList.toggle("near", ratio >= 0.9);
+    const pctEl = vessel && vessel.querySelector(".vessel-pct");
+    if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
     const label = document.getElementById("water-amount");
     if (label) label.textContent = `${(ml / 1000).toFixed(2)} / ${(targetMl / 1000).toFixed(2)} L`;
     const wrap = document.querySelector('.ring-wrap[data-ring="water"]');
@@ -571,8 +577,10 @@ const App = {
     const c = 2 * Math.PI * r;
     const pct = Math.max(0, Math.min(1, percent));
     const offset = c * (1 - pct);
+    // "within 10% of target" → momentum pulse (but not when blown past it)
+    const near = percent >= 0.9 && percent <= 1.08;
     return `
-      <div class="ring-wrap" data-ring="${label}">
+      <div class="ring-wrap ${near ? "near" : ""}" data-ring="${label}">
         <svg viewBox="0 0 100 100" class="ring">
           <circle cx="50" cy="50" r="${r}" class="ring-bg"></circle>
           <circle cx="50" cy="50" r="${r}" class="ring-fg"
@@ -580,6 +588,47 @@ const App = {
         </svg>
         <div class="ring-center"><span class="ring-val">${valueText}</span><span class="ring-label">${label}</span></div>
       </div>`;
+  },
+
+  /* Streak as a literal temperature gauge: dim ember → white-hot at 2 weeks. */
+  heatGauge() {
+    const s = this.state.streak || 0;
+    const pct = Math.min(100, (s / 14) * 100);
+    let tier, label, icon;
+    if (s >= 14)      { tier = "whitehot"; label = "WHITE-HOT"; icon = "fa-temperature-full"; }
+    else if (s >= 7)  { tier = "blazing";  label = "BLAZING";   icon = "fa-temperature-three-quarters"; }
+    else if (s >= 3)  { tier = "warming";  label = "WARMING";   icon = "fa-temperature-half"; }
+    else              { tier = "ember";    label = s > 0 ? "EMBER" : "COLD"; icon = "fa-temperature-quarter"; }
+    return `<div class="heat-gauge heat-${tier}">
+        <i class="fa-solid ${icon}"></i>
+        <div class="heat-track">
+          <div class="heat-fill" style="width:${pct}%"></div>
+          <div class="heat-knob" style="left:${pct}%"></div>
+        </div>
+        <span class="heat-label">${label}</span>
+      </div>`;
+  },
+
+  /* Momentary spark explosion — fired on calorie target + XP level-up. */
+  sparkBurst(count = 36) {
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+    const layer = document.createElement("div");
+    layer.className = "sparks";
+    const cols = ["#ffd98a", "#ff6a18", "#ff2e7e", "#ffc83a", "#fff4dc"];
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const dist = 120 + Math.random() * 240;
+      const sp = document.createElement("i");
+      sp.style.setProperty("--dx", `${(Math.cos(a) * dist).toFixed(0)}px`);
+      sp.style.setProperty("--dy", `${(Math.sin(a) * dist).toFixed(0)}px`);
+      sp.style.background = cols[i % cols.length];
+      sp.style.animationDelay = `${(Math.random() * 0.08).toFixed(2)}s`;
+      sp.style.animationDuration = `${(0.7 + Math.random() * 0.55).toFixed(2)}s`;
+      layer.appendChild(sp);
+    }
+    document.body.appendChild(layer);
+    setTimeout(() => layer.remove(), 1500);
   },
 
   /* badges earned from current state */
@@ -709,6 +758,8 @@ const App = {
 
       <p class="motivation">“${this.dailyMotivation()}”</p>
 
+      ${this.heatGauge()}
+
       <div class="remaining-hero">
         <span class="big" style="color:${calColor === "var(--danger)" ? "var(--danger)" : "inherit"}">${consumed}</span>
         <span class="muted">of ${max} kcal max ${actBurn ? `· +${actBurn} earned` : ""}</span>
@@ -732,7 +783,11 @@ const App = {
 
       <div class="card">
         <div class="wk-head"><h3><i class="fa-solid fa-droplet i-cyan"></i> Water</h3><span id="water-amount" class="water-amount">${(this.state.active.waterMl / 1000).toFixed(2)} / ${(targetMl / 1000).toFixed(2)} L</span></div>
-        <div class="water-bar"><div id="water-fill" class="water-fill" style="width:${Math.min(100, (this.state.active.waterMl / targetMl) * 100).toFixed(1)}%"></div></div>
+        <div class="vessel ${this.state.active.waterMl / targetMl >= 0.9 ? "near" : ""}">
+          <div id="water-fill" class="vessel-liquid" style="height:${Math.min(100, (this.state.active.waterMl / targetMl) * 100).toFixed(1)}%"></div>
+          <div class="vessel-gloss"></div>
+          <div class="vessel-pct">${Math.round(Math.min(100, (this.state.active.waterMl / targetMl) * 100))}%</div>
+        </div>
         <div class="chip-row water-chips">
           <button class="chip water-add" data-ml="250">+250</button>
           <button class="chip water-add" data-ml="330">+330</button>
@@ -807,6 +862,13 @@ const App = {
     if (this._heroAnim) {
       this._heroAnim = false;
       this.animateCount(root.querySelector(".remaining-hero .big"), consumed);
+    }
+
+    // Spark explosion the first time you reach your calorie target for the day.
+    if (consumed >= p.calorieTarget && p.calorieTarget > 0 && !this.state.active._sparkedCal) {
+      this.state.active._sparkedCal = true;
+      this.save();
+      setTimeout(() => this.sparkBurst(), 220);
     }
   },
 

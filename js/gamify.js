@@ -61,7 +61,7 @@ const Gamify = {
     const before = this.levelInfo(g.xp).level;
     g.xp += amount;
     const after = this.levelInfo(g.xp).level;
-    if (after > before && App.celebrate) App.celebrate(`Level ${after}!`);
+    if (after > before && App.celebrate) { App.celebrate(`Level ${after}!`); if (App.sparkBurst) App.sparkBurst(); }
     App.save();
     this.updateXpBar();
   },
