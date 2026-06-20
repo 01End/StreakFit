@@ -871,6 +871,8 @@ const App = {
             <div class="prog-pill"><b>${goalHits}/${goalDays.length || 0}</b><span>goal days (30d)</span></div>
           </div>
         </div>
+
+        ${this.sleepMoodSection()}
       </div>`;
     document.body.appendChild(modal);
     requestAnimationFrame(() => modal.classList.add("open"));
@@ -888,6 +890,78 @@ const App = {
       modal.remove();
       this.renderDashboard();
     });
+  },
+
+  /* ---------- sleep & mood insights ---------- */
+  sleepMoodSection() {
+    // Gather history entries that have at least one tracked field.
+    const hist = [...this.state.history.slice(-30)];
+    // Include today if it has data.
+    const a = this.state.active;
+    if (a.sleepHours || a.mood || a.energy) {
+      hist.push({ date: a.date, sleepHours: a.sleepHours, mood: a.mood, energy: a.energy });
+    }
+
+    const withSleep = hist.filter((h) => h.sleepHours != null);
+    const withMood  = hist.filter((h) => h.mood  != null);
+    const withEnergy = hist.filter((h) => h.energy != null);
+
+    if (!withSleep.length && !withMood.length) {
+      return `<div class="prog-section"><h4>🌙 Sleep & Mood</h4><p class="muted small">Log sleep hours and mood on the dashboard to see insights here.</p></div>`;
+    }
+
+    // Averages.
+    const avg = (arr, fn) => arr.length ? +(arr.reduce((s, h) => s + fn(h), 0) / arr.length).toFixed(1) : null;
+    const avgSleep  = avg(withSleep,  (h) => h.sleepHours);
+    const avgMood   = avg(withMood,   (h) => h.mood);
+    const avgEnergy = avg(withEnergy, (h) => h.energy);
+
+    // Sparkline for sleep (last 14 days).
+    const sleepLast14 = withSleep.slice(-14);
+    const sleepChart = sleepLast14.length >= 2
+      ? this.sparkline(sleepLast14.map((h) => h.sleepHours), "var(--water)")
+        + `<div class="chart-cap muted small">Sleep hours · last ${sleepLast14.length} nights</div>`
+      : "";
+
+    // Mood emoji map.
+    const moodFace = (n) => ["😞","😕","😐","🙂","😄"][Math.round(n) - 1] || "😐";
+    const energyStr = (n) => "⚡".repeat(Math.round(n));
+
+    // Insight: compare mood on good-sleep days vs poor-sleep days.
+    let insight = "";
+    if (withSleep.length >= 4 && withMood.length >= 4) {
+      const joined = hist.filter((h) => h.sleepHours != null && h.mood != null);
+      if (joined.length >= 4) {
+        const good = joined.filter((h) => h.sleepHours >= 7);
+        const poor = joined.filter((h) => h.sleepHours < 7);
+        const moodGood = avg(good, (h) => h.mood);
+        const moodPoor = avg(poor, (h) => h.mood);
+        if (good.length && poor.length && moodGood !== null && moodPoor !== null) {
+          const diff = +(moodGood - moodPoor).toFixed(1);
+          if (diff > 0.3) {
+            insight = `<div class="insight-pill">💡 On 7+ h sleep days your mood is <b>${moodFace(moodGood)}</b> vs <b>${moodFace(moodPoor)}</b> on shorter nights. Sleep wins!</div>`;
+          } else if (diff < -0.3) {
+            insight = `<div class="insight-pill">💡 Your mood holds up even on shorter sleep nights — you're resilient!</div>`;
+          } else {
+            insight = `<div class="insight-pill">💡 Your mood is pretty consistent regardless of sleep length — keep logging to see patterns develop.</div>`;
+          }
+        }
+      }
+    }
+
+    const statChip = (icon, val, label) =>
+      val != null ? `<div class="prog-pill"><b>${icon} ${val}</b><span>${label}</span></div>` : "";
+
+    return `<div class="prog-section">
+      <h4>🌙 Sleep & Mood</h4>
+      <div class="prog-grid">
+        ${statChip("😴", avgSleep ? avgSleep + "h" : null, "avg sleep")}
+        ${statChip("", avgMood ? moodFace(avgMood) : null, "avg mood")}
+        ${statChip("", avgEnergy ? energyStr(avgEnergy) : null, "avg energy")}
+      </div>
+      ${sleepChart}
+      ${insight}
+    </div>`;
   },
 
   /* ---------- calorie / deficit calculator ---------- */
@@ -1161,6 +1235,10 @@ const App = {
   init() {
     this.load();
     this.checkRollover();
+    // Register service worker for proper OS notifications on Android PWA.
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
     if (window.Reminders) Reminders.start();
 
     document.querySelectorAll(".nav-btn").forEach((b) =>

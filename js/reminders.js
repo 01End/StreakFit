@@ -1,7 +1,7 @@
 /* StreakFit — reminders & nudges.
- * Client-side only: an in-app scheduler fires browser notifications (if permitted) or
- * an in-app toast at the set times WHILE the app is open/installed. True background push
- * needs a server, which this free/offline app doesn't have — so this is best-effort.
+ * Uses a service worker (sw.js) for proper OS notifications on Android PWA.
+ * Falls back to Notification API (foreground tab only), then in-app toast.
+ * True background push when the app is CLOSED needs a server — these are best-effort.
  */
 const Reminders = {
   DEFAULTS: [
@@ -25,12 +25,21 @@ const Reminders = {
     if (typeof Notification === "undefined") return "unsupported";
     try { return await Notification.requestPermission(); } catch (e) { return "denied"; }
   },
+
   fire(r) {
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    const granted = typeof Notification !== "undefined" && Notification.permission === "granted";
+    if (granted) {
+      // Service worker showNotification works on Android even when app is backgrounded.
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: "NOTIFY", body: r.label, tag: r.id });
+        return;
+      }
+      // Fallback: plain Notification API (requires foreground tab).
       try { new Notification("StreakFit", { body: r.label }); return; } catch (e) {}
     }
     if (App.celebrateMini) App.celebrateMini("🔔 " + r.label);
   },
+
   tick() {
     const now = new Date();
     const cur = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
@@ -49,6 +58,7 @@ const Reminders = {
   /* ---------- modal UI ---------- */
   open() {
     const perm = this.permission();
+    const hasSW = "serviceWorker" in navigator;
     const rows = this.list()
       .map((r, i) => `
         <div class="rem-row">
@@ -58,11 +68,17 @@ const Reminders = {
           <button class="del rem-del" data-i="${i}">✕</button>
         </div>`)
       .join("");
-    const permLine = perm === "granted"
-      ? `<p class="muted small">✅ Notifications on. They fire while StreakFit is open.</p>`
-      : perm === "unsupported"
-      ? `<p class="muted small">Your browser can't show notifications — you'll get in-app nudges instead.</p>`
-      : `<button id="rem-perm" class="btn-ghost">Enable notifications</button><p class="muted small">Without permission you'll still get in-app nudges while the app is open.</p>`;
+
+    let permLine;
+    if (perm === "granted") {
+      permLine = `<p class="muted small">✅ Notifications on.${hasSW ? " Works even when the app is in background on Android." : ""}</p>`;
+    } else if (perm === "unsupported") {
+      permLine = `<p class="muted small">Your browser doesn't support notifications — you'll get in-app nudges instead.</p>`;
+    } else {
+      permLine = `
+        <button id="rem-perm" class="btn-primary" style="margin-bottom:8px">🔔 Enable phone notifications</button>
+        <p class="muted small">Tap above to allow — StreakFit will send real phone alerts at the times you set.</p>`;
+    }
 
     const modal = document.createElement("div");
     modal.id = "rem-modal";
@@ -73,14 +89,19 @@ const Reminders = {
         ${permLine}
         <div class="rem-list">${rows}</div>
         <button id="rem-add" class="btn-ghost">+ Add reminder</button>
-        <p class="muted small">📱 Tip: add StreakFit to your home screen so reminders can reach you. (Reminders only fire while the app is open — a background push would need a server.)</p>
+        <p class="muted small">📱 Add StreakFit to your home screen for the best experience. Notifications fire while the app is open or backgrounded — not after it's fully closed (that needs a server).</p>
       </div>`;
     document.body.appendChild(modal);
     requestAnimationFrame(() => modal.classList.add("open"));
     modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest(".ex-close")) modal.remove(); });
 
     const permBtn = modal.querySelector("#rem-perm");
-    if (permBtn) permBtn.addEventListener("click", async () => { await this.requestPermission(); modal.remove(); this.open(); });
+    if (permBtn) permBtn.addEventListener("click", async () => {
+      const result = await this.requestPermission();
+      if (result === "granted") App.celebrateMini("🔔 Notifications enabled!");
+      modal.remove();
+      this.open();
+    });
 
     modal.querySelector(".rem-list").addEventListener("input", (e) => {
       const el = e.target, i = +el.dataset.i, r = this.list()[i];

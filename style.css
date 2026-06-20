@@ -728,6 +728,8 @@ label input, label select { color: var(--text); }
 .prog-pill { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 8px; text-align: center; }
 .prog-pill b { display: block; font-family: var(--font-display); font-size: 1.3rem; color: var(--lime); }
 .prog-pill span { font-size: 0.7rem; color: var(--muted); }
+.insight-pill { background: rgba(197,241,53,0.07); border: 1px solid rgba(197,241,53,0.25); border-radius: 12px; padding: 10px 14px; font-size: 0.83rem; margin-top: 10px; color: var(--text); line-height: 1.5; }
+.insight-pill b { color: var(--lime); }
 
 /* ---- calorie calculator ---- */
 .chip.active { background: linear-gradient(135deg, var(--lime), #a9e024); color: #0a0e05; border-color: var(--lime); }

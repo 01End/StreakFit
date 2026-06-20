@@ -16,11 +16,20 @@ function searchFoods(query) {
   return matches.slice(0, 25);
 }
 
-// Online search via Open Food Facts → per-100g food objects (same shape as FOODS).
+// Online search via Open Food Facts v2 API → per-100g food objects (same shape as FOODS).
 async function searchFoodsOnline(query) {
-  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=20&fields=product_name,brands,nutriments,serving_size`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Search failed");
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 10000);
+  let res;
+  try {
+    res = await fetch(
+      `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(query)}&page_size=20&fields=product_name,brands,nutriments,serving_size&json=1`,
+      { signal: ctrl.signal }
+    );
+  } finally {
+    clearTimeout(tid);
+  }
+  if (!res.ok) throw new Error(`Server error ${res.status}`);
   const data = await res.json();
   return (data.products || [])
     .map((p) => {
@@ -326,7 +335,8 @@ function renderLogTab() {
         : `<li class="muted">No online matches.</li>`;
       onlineBtn.textContent = "🔎 Search again";
     } catch (err) {
-      onlineEl.innerHTML = `<li class="muted">Online search needs internet. Use the local list or Quick Add.</li>`;
+      const msg = err.name === "AbortError" ? "Search timed out — check your connection." : `Search failed: ${err.message}`;
+      onlineEl.innerHTML = `<li class="muted">${msg} You can use Quick Add or Recipe Builder below.</li>`;
       onlineBtn.textContent = "🔎 Retry";
     }
   });
