@@ -63,6 +63,9 @@
 
 html, body {
   margin: 0;
+  width: 100%;
+  min-height: 100dvh;
+  overflow-x: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
@@ -78,7 +81,7 @@ html, body {
 /* ---------- atmosphere: living molten gradient mesh ---------- */
 body::before {
   content: "";
-  position: fixed; inset: -30%;
+  position: fixed; inset: -40%;
   z-index: -2;
   background:
     radial-gradient(34% 28% at 10% -6%, rgba(255, 122, 30, 0.30), transparent 70%),
@@ -135,7 +138,8 @@ body::after {
 #app {
   max-width: 540px;
   margin: 0 auto;
-  padding: 22px 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 28px);
+  /* top: clear notch / Dynamic Island; bottom: clear home indicator */
+  padding: calc(env(safe-area-inset-top) + 22px) 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 28px);
 }
 
 /* ---------- views & entrance choreography ---------- */

@@ -19,12 +19,12 @@ function searchFoods(query) {
 // Online search via Open Food Facts v2 API → per-100g food objects (same shape as FOODS).
 async function searchFoodsOnline(query) {
   const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), 10000);
+  const tid = setTimeout(() => ctrl.abort(), 12000);
   let res;
   try {
     res = await fetch(
       `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(query)}&page_size=20&fields=product_name,brands,nutriments,serving_size&json=1`,
-      { signal: ctrl.signal }
+      { signal: ctrl.signal, mode: "cors" }
     );
   } finally {
     clearTimeout(tid);
@@ -34,17 +34,19 @@ async function searchFoodsOnline(query) {
   return (data.products || [])
     .map((p) => {
       const n = p.nutriments || {};
-      const name = [p.brands, p.product_name].filter(Boolean).join(" ").trim();
-      if (!name || !n["energy-kcal_100g"]) return null;
+      const name = [p.brands, p.product_name].filter(Boolean).join(" — ").trim();
+      // API uses both energy-kcal_100g and energy-kcal as field names
+      const kcal = n["energy-kcal_100g"] ?? n["energy-kcal"] ?? (n["energy_100g"] ? n["energy_100g"] / 4.184 : 0);
+      if (!name || !kcal) return null;
       return {
         name,
-        kcal: Math.round(n["energy-kcal_100g"] || 0),
-        protein: +(n.proteins_100g || 0).toFixed(1),
-        carbs: +(n.carbohydrates_100g || 0).toFixed(1),
-        fats: +(n.fat_100g || 0).toFixed(1),
-        sugar: +(n.sugars_100g || 0).toFixed(1),
-        fiber: +(n.fiber_100g || 0).toFixed(1),
-        sodium: Math.round((n.sodium_100g || 0) * 1000),
+        kcal: Math.round(kcal),
+        protein: +(n["proteins_100g"] ?? n["proteins"] ?? 0).toFixed(1),
+        carbs: +(n["carbohydrates_100g"] ?? n["carbohydrates"] ?? 0).toFixed(1),
+        fats: +(n["fat_100g"] ?? n["fat"] ?? 0).toFixed(1),
+        sugar: +(n["sugars_100g"] ?? n["sugars"] ?? 0).toFixed(1),
+        fiber: +(n["fiber_100g"] ?? n["fiber"] ?? 0).toFixed(1),
+        sodium: Math.round(((n["sodium_100g"] ?? n["sodium"] ?? 0)) * 1000),
         serving: p.serving_size ? { label: p.serving_size, g: parseFloat(p.serving_size) || 100 } : { label: "100 g", g: 100 },
       };
     })
