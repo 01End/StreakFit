@@ -1369,7 +1369,6 @@ button { min-height: 0; }
   border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer;
   background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.18);
 }
-.coach-sim-grid { display: grid; gap: 10px; margin-bottom: 14px; }
 .coach-result-card { padding: 16px; text-align: center; }
 .coach-result-big  { font-size: 42px; font-weight: 900; letter-spacing: -0.06em; line-height: 1; }
 .coach-result-lbl  { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }

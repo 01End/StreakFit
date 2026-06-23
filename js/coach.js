@@ -16,6 +16,7 @@ const Coach = {
     if (dailyDelta <= 0) return { weeks: Infinity, kgPerWeek: 0, goalDate: null, safe: true, warning: 'Calorie setting will not produce change toward goal.' };
 
     const totalKg = Math.abs(goalKg - weightKg);
+    if (totalKg === 0) return { weeks: 0, weeksRounded: 0, kgPerWeek: 0, goalDate: new Date(), goalDateStr: 'Already at goal', safe: true, warning: null };
     const totalKcal = totalKg * 7700;
     const weeks = totalKcal / (dailyDelta * 7);
     const kgPerWeek = totalKg / weeks;
@@ -37,7 +38,9 @@ const Coach = {
    * Given current weight, goal weight, and a deadline date string (ISO), returns required daily params.
    */
   reversePlan({ weightKg, goalKg, deadline, tdee }) {
-    const days = (new Date(deadline) - Date.now()) / 86400000;
+    const deadlineDate = new Date(deadline);
+    if (isNaN(deadlineDate.getTime())) return { error: 'Invalid deadline date.' };
+    const days = (deadlineDate - Date.now()) / 86400000;
     if (days <= 0) return { error: 'Deadline is in the past.' };
     const weeks = days / 7;
     const totalKg = Math.abs(goalKg - weightKg);
