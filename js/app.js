@@ -677,12 +677,23 @@ const App = {
     requestAnimationFrame(step);
   },
 
+  _updateBg() {
+    const t = this.dayTotals();
+    const max = this.dailyMax();
+    document.body.classList.remove('perf-crushed', 'perf-over');
+    if (t.kcal < max * 0.9 && t.protein >= (this.state.profile?.proteinMinG || 0))
+      document.body.classList.add('perf-crushed');
+    else if (t.kcal > max * 1.05)
+      document.body.classList.add('perf-over');
+  },
+
   renderDashboard() {
     const root = document.getElementById("view-dashboard");
     if (!this.state.profile) {
       this.renderProfileForm(false);
       return;
     }
+    this._updateBg();
     const p = this.state.profile;
     const t = this.dayTotals();
     const stepBurn = this.stepsBurn();
