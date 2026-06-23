@@ -414,7 +414,7 @@ function renderLogTab() {
     try {
       const results = await searchFoodsOnline(q);
       onlineEl._results = results;
-      if (!settings.nutritionixAppId && !settings._nutritionixPromptDismissed) {
+      if (!settings.nutritionixAppId && !settings._nutritionixPromptDismissed && !document.querySelector('.nutritionix-prompt')) {
         const promptEl = document.createElement('div');
         promptEl.className = 'nutritionix-prompt';
         promptEl.innerHTML = `<i class="fa-solid fa-burger"></i> Add a free Nutritionix key in Settings for McDonald's, KFC & 800+ fast food chains. <span class="dismiss" onclick="App.state.settings._nutritionixPromptDismissed=true;App.save();this.closest('.nutritionix-prompt').remove()">✕</span>`;
@@ -436,7 +436,7 @@ function renderLogTab() {
         : `<li class="muted">No online matches.</li>`;
       onlineBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Search again`;
     } catch (err) {
-      const msg = err.name === "AbortError" ? "Search timed out — check your connection." : `Search failed: ${err.message}`;
+      const msg = err.name === "AbortError" ? "Search timed out — check your connection." : "Search failed. Try again or use Quick Add below.";
       onlineEl.innerHTML = `<li class="muted">${msg} You can use Quick Add or Recipe Builder below.</li>`;
       onlineBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Retry`;
     }
