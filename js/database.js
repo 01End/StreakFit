@@ -16,41 +16,129 @@ function searchFoods(query) {
   return matches.slice(0, 25);
 }
 
-// Online search via Open Food Facts v2 API → per-100g food objects (same shape as FOODS).
-async function searchFoodsOnline(query) {
+// ------- helpers -------
+function _fetchTimeout(url, ms, opts = {}) {
   const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), 12000);
-  let res;
-  try {
-    res = await fetch(
-      `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(query)}&page_size=20&fields=product_name,brands,nutriments,serving_size&json=1`,
-      { signal: ctrl.signal, mode: "cors" }
+  const tid = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal, mode: 'cors' }).finally(() => clearTimeout(tid));
+}
+
+function _parseOFF(products) {
+  return (products || []).map(p => {
+    const n = p.nutriments || {};
+    const name = [p.brands, p.product_name].filter(Boolean).join(' — ').trim();
+    const kcal = n['energy-kcal_100g'] ?? n['energy-kcal'] ?? (n['energy_100g'] ? n['energy_100g'] / 4.184 : 0);
+    if (!name || !kcal) return null;
+    return {
+      name, _source: 'packaged',
+      kcal: Math.round(kcal),
+      protein: +((n['proteins_100g']        ?? n['proteins']        ?? 0)).toFixed(1),
+      carbs:   +((n['carbohydrates_100g']   ?? n['carbohydrates']   ?? 0)).toFixed(1),
+      fats:    +((n['fat_100g']             ?? n['fat']             ?? 0)).toFixed(1),
+      sugar:   +((n['sugars_100g']          ?? n['sugars']          ?? 0)).toFixed(1),
+      fiber:   +((n['fiber_100g']           ?? n['fiber']           ?? 0)).toFixed(1),
+      sodium:  Math.round(((n['sodium_100g'] ?? n['sodium'] ?? 0)) * 1000),
+      serving: p.serving_size
+        ? { label: p.serving_size, g: parseFloat(p.serving_size) || 100 }
+        : { label: '100 g', g: 100 },
+    };
+  }).filter(Boolean);
+}
+
+function _parseUSDA(foods) {
+  return (foods || []).map(f => {
+    const nutrients = {};
+    (f.foodNutrients || []).forEach(n => { nutrients[n.nutrientId] = n.value || 0; });
+    const kcal = nutrients[1008] || 0;
+    if (!f.description || !kcal) return null;
+    const brandPrefix = f.brandOwner ? f.brandOwner + ' — ' : '';
+    return {
+      name: brandPrefix + f.description,
+      _source: 'usda',
+      kcal: Math.round(kcal),
+      protein: +(nutrients[1003] || 0).toFixed(1),
+      carbs:   +(nutrients[1005] || 0).toFixed(1),
+      fats:    +(nutrients[1004] || 0).toFixed(1),
+      sugar:   +(nutrients[2000] || 0).toFixed(1),
+      fiber:   +(nutrients[1079] || 0).toFixed(1),
+      sodium:  Math.round(nutrients[1093] || 0),
+      serving: { label: '100 g', g: 100 },
+    };
+  }).filter(Boolean);
+}
+
+function _parseNutritionix(data) {
+  const items = [...(data.branded || []), ...(data.common || [])];
+  return items.map(item => {
+    const servingG = item.serving_weight_grams || 100;
+    const scale = 100 / servingG;
+    const kcal = item.nf_calories || 0;
+    if (!item.food_name || !kcal) return null;
+    const name = [item.brand_name, item.food_name].filter(Boolean).join(' — ');
+    return {
+      name, _source: 'fastfood',
+      kcal:    Math.round(kcal * scale),
+      protein: +((item.nf_protein              || 0) * scale).toFixed(1),
+      carbs:   +((item.nf_total_carbohydrate   || 0) * scale).toFixed(1),
+      fats:    +((item.nf_total_fat            || 0) * scale).toFixed(1),
+      sugar:   +((item.nf_sugars               || 0) * scale).toFixed(1),
+      fiber:   +((item.nf_dietary_fiber        || 0) * scale).toFixed(1),
+      sodium:  Math.round((item.nf_sodium || 0) * scale),
+      serving: {
+        label: `${item.serving_qty || 1} ${item.serving_unit || 'serving'} (${Math.round(item.serving_qty * servingG)}g)`,
+        g: Math.round(item.serving_qty * servingG),
+      },
+    };
+  }).filter(Boolean);
+}
+
+// Online search — queries Open Food Facts + USDA + Nutritionix in parallel.
+async function searchFoodsOnline(query) {
+  const q = encodeURIComponent(query.trim());
+  const settings = (App.state && App.state.settings) || {};
+  const requests = [];
+
+  // 1. Open Food Facts (always — supermarket snacks, packaged items)
+  requests.push(
+    _fetchTimeout(
+      `https://world.openfoodfacts.org/api/v2/search?search_terms=${q}&page_size=15&fields=product_name,brands,nutriments,serving_size&json=1`,
+      12000
+    ).then(r => r.json()).then(d => _parseOFF(d.products)).catch(() => [])
+  );
+
+  // 2. USDA FoodData Central (always — 500k+ raw/generic foods)
+  requests.push(
+    _fetchTimeout(
+      `https://api.nal.usda.gov/fdc/v1/foods/search?query=${q}&api_key=DEMO_KEY&pageSize=10&dataType=Foundation,SR%20Legacy,Branded`,
+      12000
+    ).then(r => r.json()).then(d => _parseUSDA(d.foods)).catch(() => [])
+  );
+
+  // 3. Nutritionix (only if user has configured keys — fast food chains)
+  if (settings.nutritionixAppId && settings.nutritionixAppKey) {
+    requests.push(
+      _fetchTimeout(
+        `https://trackapi.nutritionix.com/v2/search/instant?query=${q}`,
+        12000,
+        { headers: {
+            'x-app-id': settings.nutritionixAppId,
+            'x-app-key': settings.nutritionixAppKey,
+            'x-remote-user-id': '0',
+        }}
+      ).then(r => r.json()).then(d => _parseNutritionix(d)).catch(() => [])
     );
-  } finally {
-    clearTimeout(tid);
   }
-  if (!res.ok) throw new Error(`Server error ${res.status}`);
-  const data = await res.json();
-  return (data.products || [])
-    .map((p) => {
-      const n = p.nutriments || {};
-      const name = [p.brands, p.product_name].filter(Boolean).join(" — ").trim();
-      // API uses both energy-kcal_100g and energy-kcal as field names
-      const kcal = n["energy-kcal_100g"] ?? n["energy-kcal"] ?? (n["energy_100g"] ? n["energy_100g"] / 4.184 : 0);
-      if (!name || !kcal) return null;
-      return {
-        name,
-        kcal: Math.round(kcal),
-        protein: +(n["proteins_100g"] ?? n["proteins"] ?? 0).toFixed(1),
-        carbs: +(n["carbohydrates_100g"] ?? n["carbohydrates"] ?? 0).toFixed(1),
-        fats: +(n["fat_100g"] ?? n["fat"] ?? 0).toFixed(1),
-        sugar: +(n["sugars_100g"] ?? n["sugars"] ?? 0).toFixed(1),
-        fiber: +(n["fiber_100g"] ?? n["fiber"] ?? 0).toFixed(1),
-        sodium: Math.round(((n["sodium_100g"] ?? n["sodium"] ?? 0)) * 1000),
-        serving: p.serving_size ? { label: p.serving_size, g: parseFloat(p.serving_size) || 100 } : { label: "100 g", g: 100 },
-      };
-    })
-    .filter(Boolean);
+
+  const settled = await Promise.allSettled(requests);
+  const combined = settled.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+
+  // Deduplicate by normalised name
+  const seen = new Set();
+  return combined.filter(f => {
+    const key = f.name.toLowerCase().replace(/\s+/g, ' ').slice(0, 60);
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  }).slice(0, 35);
 }
 
 // Scale a per-100g food to `grams`.
@@ -321,20 +409,30 @@ function renderLogTab() {
   onlineBtn.addEventListener("click", async () => {
     const q = searchEl.value.trim();
     if (!q) return;
+    const settings = App.state.settings || {};
     onlineBtn.textContent = "Searching…";
     try {
       const results = await searchFoodsOnline(q);
       onlineEl._results = results;
+      if (!settings.nutritionixAppId && !settings._nutritionixPromptDismissed) {
+        const promptEl = document.createElement('div');
+        promptEl.className = 'nutritionix-prompt';
+        promptEl.innerHTML = `<i class="fa-solid fa-burger"></i> Add a free Nutritionix key in Settings for McDonald's, KFC & 800+ fast food chains. <span class="dismiss" onclick="App.state.settings._nutritionixPromptDismissed=true;App.save();this.closest('.nutritionix-prompt').remove()">✕</span>`;
+        onlineEl.parentNode.insertBefore(promptEl, onlineEl);
+      }
       onlineEl.innerHTML = results.length
-        ? results
-            .map(
-              (f, idx) =>
-                `<li class="result" data-idx="${idx}">
-                   <div><strong>${f.name}</strong> <em class="tag">web</em></div>
-                   <span class="muted">${Math.round(f.kcal)} kcal/100g</span>
-                 </li>`
-            )
-            .join("")
+        ? results.map((f, idx) => {
+            const badgeClass = f._source === 'fastfood' ? 'source-fastfood'
+              : f._source === 'usda' ? 'source-usda'
+              : f._source === 'packaged' ? 'source-packaged' : '';
+            const badgeLabel = f._source === 'fastfood' ? 'Fast Food'
+              : f._source === 'usda' ? 'USDA' : f._source === 'packaged' ? 'Packaged' : '';
+            const badge = badgeClass ? `<span class="source-badge ${badgeClass}">${badgeLabel}</span>` : '';
+            return `<li class="result" data-idx="${idx}">
+              <div><strong>${f.name}</strong>${badge}</div>
+              <span class="muted">${Math.round(f.kcal)} kcal/100g</span>
+            </li>`;
+          }).join('')
         : `<li class="muted">No online matches.</li>`;
       onlineBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Search again`;
     } catch (err) {
