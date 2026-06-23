@@ -730,17 +730,18 @@ const App = {
   },
 
   tripleRings(consumed, max, protein, proteinTarget, waterMl, waterTargetMl) {
-    const pct = (v, t) => t > 0 ? Math.min(v / t, 1) : 0;
-    const calPct = pct(consumed, max);
-    const proPct = pct(protein, proteinTarget);
-    const watPct = pct(waterMl, waterTargetMl);
+    const rawPct = (v, t) => t > 0 ? v / t : 0;
+    const clamp  = p => Math.min(Math.max(p, 0), 1);
+    const calRaw = rawPct(consumed, max);
+    const proRaw = rawPct(protein, proteinTarget);
+    const watRaw = rawPct(waterMl, waterTargetMl);
 
     // Three concentric rings: outer r=70, middle r=54, inner r=38
     // circumference = 2πr; dashoffset = circ * (1 - pct) to fill clockwise from top
     const rings = [
-      { r: 70, pct: calPct, color: 'var(--flame)',  val: consumed,                      unit: 'kcal', lbl: 'Calories', near: calPct >= 0.95 && calPct <= 1.05 },
-      { r: 54, pct: proPct, color: 'var(--aqua)',   val: Math.round(protein) + 'g',     unit: '',     lbl: 'Protein',  near: proPct >= 0.95 && proPct <= 1.05 },
-      { r: 38, pct: watPct, color: 'var(--violet)', val: (waterMl/1000).toFixed(1)+'L', unit: '',     lbl: 'Water',    near: watPct >= 0.95 && watPct <= 1.05 },
+      { r: 70, pct: clamp(calRaw), color: 'var(--flame)',  val: consumed,                      unit: 'kcal', lbl: 'Calories', near: calRaw >= 0.95 && calRaw <= 1.05 },
+      { r: 54, pct: clamp(proRaw), color: 'var(--aqua)',   val: Math.round(protein) + 'g',     unit: '',     lbl: 'Protein',  near: proRaw >= 0.95 && proRaw <= 1.05 },
+      { r: 38, pct: clamp(watRaw), color: 'var(--violet)', val: (waterMl/1000).toFixed(1)+'L', unit: '',     lbl: 'Water',    near: watRaw >= 0.95 && watRaw <= 1.05 },
     ];
 
     const svgRings = rings.map(({ r, pct, color, near }) => {
