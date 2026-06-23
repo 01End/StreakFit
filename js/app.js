@@ -712,13 +712,13 @@ const App = {
   },
 
   _onGyro(e) {
+    const now = Date.now();
+    if (now - (this._lastGyroTs || 0) < 33) return; // throttle to ~30 fps
+    this._lastGyroTs = now;
     // beta = front-back tilt (-180 to 180), gamma = left-right tilt (-90 to 90)
     const beta  = Math.max(-8, Math.min(8, (e.beta  || 0) - 45)); // 45° = neutral upright
     const gamma = Math.max(-8, Math.min(8, (e.gamma || 0)));
-
-    // Apply to all .card elements currently in DOM
-    const cards = document.querySelectorAll('.card');
-    cards.forEach(card => {
+    document.querySelectorAll('.card').forEach(card => {
       card.style.transform = `perspective(800px) rotateX(${-beta * 0.5}deg) rotateY(${gamma * 0.5}deg)`;
     });
   },
