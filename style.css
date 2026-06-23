@@ -1211,6 +1211,56 @@ button { min-height: 0; }
   100% { transform: translate(var(--dx), var(--dy)) scale(0.25); opacity: 0; }
 }
 
+/* ---- Dynamic Island pill ---- */
+.island-pill {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(10,8,7,0.72);
+  backdrop-filter: blur(32px) saturate(2.5);
+  -webkit-backdrop-filter: blur(32px) saturate(2.5);
+  border: 0.5px solid rgba(255,255,255,0.14);
+  border-radius: 30px;
+  padding: 8px 16px 8px 12px;
+  cursor: pointer;
+  transition: all 0.4s var(--spring);
+  overflow: hidden; max-height: 44px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 8px 24px rgba(0,0,0,0.5);
+  position: relative;
+}
+.island-pill::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 50%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent);
+  border-radius: 30px 30px 0 0; pointer-events: none;
+}
+.island-pill.expanded { max-height: 120px; border-radius: 22px; padding-bottom: 14px; }
+.island-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--flame);
+  box-shadow: 0 0 8px var(--flame);
+  animation: island-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes island-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.3); opacity: 0.7; }
+}
+.island-kcal { font-size: 15px; font-weight: 800; color: var(--flame); letter-spacing: -0.03em; }
+.island-streak { font-size: 13px; color: rgba(255,255,255,0.55); margin-left: auto; }
+.island-expanded { display: none; padding-top: 10px; border-top: 0.5px solid rgba(255,255,255,0.1); margin-top: 8px; width: 100%; }
+.island-pill.expanded .island-expanded { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.island-macro { text-align: center; }
+.island-macro-val { font-size: 15px; font-weight: 800; letter-spacing: -0.04em; }
+.island-macro-lbl { font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ---- Time-aware greeting ---- */
+.dash-greeting { text-align: center; margin: 16px 0 6px; }
+.greeting-main { font-size: 26px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; }
+.greeting-sub  { font-size: 13px; color: rgba(255,255,255,0.48); margin-top: 4px; }
+
+/* ---- Dashboard header row ---- */
+.dash-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 0 12px;
+}
+
 /* ---- accessibility: honour reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
   .embers, .remaining-hero::before,

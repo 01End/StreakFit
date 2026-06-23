@@ -677,6 +677,48 @@ const App = {
     requestAnimationFrame(step);
   },
 
+  _greeting() {
+    const h = new Date().getHours();
+    let main, sub;
+    if (h >= 5 && h < 12) {
+      main = 'Good morning';
+      sub = 'Start strong — breakfast sets the tone';
+    } else if (h >= 12 && h < 17) {
+      main = 'Good afternoon';
+      sub = 'Midday check-in — how\'s the fuel level?';
+    } else if (h >= 17 && h < 21) {
+      main = 'Good evening';
+      sub = 'Dinner time — finish your protein today';
+    } else {
+      main = 'Still up?';
+      sub = 'Your body repairs while you sleep — rest well';
+    }
+    return { main, sub };
+  },
+
+  _islandPillHTML(consumed, max, streak, t) {
+    const remaining = max - consumed;
+    return `<div class="island-pill" onclick="this.classList.toggle('expanded')" role="button" aria-label="Today summary">
+    <span class="island-dot"></span>
+    <span class="island-kcal">${consumed} kcal</span>
+    <span class="island-streak"><i class="fa-solid fa-fire"></i> ${streak}</span>
+    <div class="island-expanded">
+      <div class="island-macro">
+        <div class="island-macro-val" style="color:${remaining>=0?'var(--flame)':'var(--danger)'}">${remaining>=0?remaining:Math.abs(remaining)}</div>
+        <div class="island-macro-lbl">${remaining>=0?'left':'over'}</div>
+      </div>
+      <div class="island-macro">
+        <div class="island-macro-val" style="color:var(--aqua)">${Math.round(t.protein)}g</div>
+        <div class="island-macro-lbl">protein</div>
+      </div>
+      <div class="island-macro">
+        <div class="island-macro-val" style="color:var(--violet)">${Math.round(t.carbs)}g</div>
+        <div class="island-macro-lbl">carbs</div>
+      </div>
+    </div>
+  </div>`;
+  },
+
   _updateBg() {
     const t = this.dayTotals();
     const max = this.dailyMax();
@@ -758,16 +800,18 @@ const App = {
     const badges = this.computeBadges();
 
     root.innerHTML = `
-      <header class="dash-head">
-        <div class="streak"><i class="fa-solid fa-fire"></i> <span>${this.state.streak}</span> day streak</div>
-        <div class="head-btns">
-          <button id="open-reminders" class="btn-ghost small" aria-label="Reminders"><i class="fa-solid fa-bell"></i></button>
-          <button id="open-progress" class="btn-ghost small" aria-label="Progress"><i class="fa-solid fa-chart-line"></i></button>
-          <button id="edit-profile" class="btn-ghost small" aria-label="Settings"><i class="fa-solid fa-gear"></i></button>
+      <header class=”dash-head”>
+        ${this._islandPillHTML(consumed, max, this.state.streak, t)}
+        <div class=”head-btns”>
+          <button id=”open-reminders” class=”btn-ghost small” aria-label=”Reminders”><i class=”fa-solid fa-bell”></i></button>
+          <button id=”open-progress” class=”btn-ghost small” aria-label=”Progress”><i class=”fa-solid fa-chart-line”></i></button>
+          <button id=”edit-profile” class=”btn-ghost small” aria-label=”Settings”><i class=”fa-solid fa-gear”></i></button>
         </div>
       </header>
-
-      <p class="motivation">“${this.dailyMotivation()}”</p>
+      <div class=”dash-greeting”>
+        <div class=”greeting-main”>${this._greeting().main}${this.state.profile?.name ? ', ' + this.state.profile.name.split(' ')[0] : ''}</div>
+        <div class=”greeting-sub”>${this._greeting().sub}</div>
+      </div>
 
       ${this.heatGauge()}
 
