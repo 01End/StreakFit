@@ -61,7 +61,7 @@ const Gamify = {
     const before = this.levelInfo(g.xp).level;
     g.xp += amount;
     const after = this.levelInfo(g.xp).level;
-    if (after > before && App.celebrate) { App.celebrate(`Level ${after}!`); if (App.sparkBurst) App.sparkBurst(); }
+    if (after > before && App.celebrate) { App.celebrate(`Level ${after}!`); if (App.sparkBurst) App.sparkBurst(); if (window.App) App.haptic('strong'); }
     App.save();
     this.updateXpBar();
   },
@@ -71,7 +71,7 @@ const Gamify = {
     g.awardedToday.keys[key] = true;
     this.award(amount);
   },
-  onFood() { this._g().stats.foods++; this.award(this.XP.food); },
+  onFood() { this._g().stats.foods++; this.award(this.XP.food); if (window.App) App.haptic('light'); },
   onPhoto(n) { const g = this._g(); g.stats.photos++; g.stats.foods += n || 1; this.award(this.XP.photo); },
   onWorkout() { this._g().stats.workouts++; this.award(this.XP.workout); },
   onWeighIn() { this.awardDaily("weigh", this.XP.weigh); },

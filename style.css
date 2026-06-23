@@ -1282,6 +1282,16 @@ button { min-height: 0; }
 }
 .ring-fill.near-target { animation: ring-breathe 2.4s ease-in-out infinite; }
 
+/* ---- Slot-machine number flip ---- */
+.flip-digit {
+  display: inline-block;
+  transition: transform 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.18s;
+}
+.flip-digit.flipping {
+  transform: rotateX(-90deg);
+  opacity: 0;
+}
+
 /* ---- accessibility: honour reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
   .embers, .remaining-hero::before,

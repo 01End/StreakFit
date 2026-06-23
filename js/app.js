@@ -677,6 +677,20 @@ const App = {
     requestAnimationFrame(step);
   },
 
+  haptic(type = 'light') {
+    if (!navigator.vibrate) return;
+    const patterns = { light: [10], medium: [20, 30, 20], strong: [30, 20, 30, 20, 50] };
+    navigator.vibrate(patterns[type] || [10]);
+  },
+  _animateNumber(el, newText) {
+    if (!el || el.textContent === newText) return;
+    el.classList.add('flipping');
+    setTimeout(() => {
+      el.textContent = newText;
+      el.classList.remove('flipping');
+    }, 180);
+  },
+
   _greeting() {
     const h = new Date().getHours();
     let main, sub;

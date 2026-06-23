@@ -101,6 +101,7 @@ function addScaledFood(food, grams) {
   recordRecent(food);
   if (window.Gamify) Gamify.onFood();
   App.save();
+  if (window.App) App.haptic('light');
 }
 
 function removeFoodFromToday(index) {
