@@ -729,6 +729,45 @@ const App = {
       document.body.classList.add('perf-over');
   },
 
+  tripleRings(consumed, max, protein, proteinTarget, waterMl, waterTargetMl) {
+    const pct = (v, t) => t > 0 ? Math.min(v / t, 1) : 0;
+    const calPct = pct(consumed, max);
+    const proPct = pct(protein, proteinTarget);
+    const watPct = pct(waterMl, waterTargetMl);
+
+    // Three concentric rings: outer r=70, middle r=54, inner r=38
+    // circumference = 2πr; dashoffset = circ * (1 - pct) to fill clockwise from top
+    const rings = [
+      { r: 70, pct: calPct, color: 'var(--flame)',  val: consumed,                      unit: 'kcal', lbl: 'Calories', near: calPct >= 0.95 && calPct <= 1.05 },
+      { r: 54, pct: proPct, color: 'var(--aqua)',   val: Math.round(protein) + 'g',     unit: '',     lbl: 'Protein',  near: proPct >= 0.95 && proPct <= 1.05 },
+      { r: 38, pct: watPct, color: 'var(--violet)', val: (waterMl/1000).toFixed(1)+'L', unit: '',     lbl: 'Water',    near: watPct >= 0.95 && watPct <= 1.05 },
+    ];
+
+    const svgRings = rings.map(({ r, pct, color, near }) => {
+      const circ = +(2 * Math.PI * r).toFixed(2);
+      const offset = +(circ * (1 - pct)).toFixed(2);
+      const nearCls = near ? ' near-target' : '';
+      return `
+        <circle class="ring-track" cx="90" cy="90" r="${r}" stroke="${color}" stroke-width="9"/>
+        <circle class="ring-fill${nearCls}" cx="90" cy="90" r="${r}" stroke="${color}" stroke-width="9"
+          style="stroke-dasharray:${circ};stroke-dashoffset:${offset};transform:rotate(-90deg);filter:drop-shadow(0 0 6px ${color})"
+          data-circ="${circ}" data-offset="${offset}"/>`;
+    }).join('');
+
+    const legend = rings.map(({ color, val, unit, lbl }) =>
+      `<div class="ring-legend-row">
+        <span class="ring-legend-val" style="color:${color}">${val}</span>
+        ${unit ? `<span class="ring-legend-unit">${unit}</span>` : ''}
+        <span class="ring-legend-lbl">${lbl}</span>
+      </div>`
+    ).join('');
+
+    return `<div class="triple-rings-wrap">
+      <svg class="triple-rings-svg" viewBox="0 0 180 180" width="180" height="180">${svgRings}</svg>
+      <div class="rings-legend">${legend}</div>
+    </div>`;
+  },
+
   renderDashboard() {
     const root = document.getElementById("view-dashboard");
     if (!this.state.profile) {
@@ -821,12 +860,7 @@ const App = {
         <div class="hero-pill ${remaining >= 0 ? "ok" : "bad"}">${remaining >= 0 ? `${remaining} kcal left` : `${Math.abs(remaining)} over`}</div>
       </div>
 
-      <div class="rings">
-        ${this.ring(consumed / max, calColor, `${consumed}`, "kcal")}
-        ${this.ring(t.protein / p.proteinMinG, proColor, `${Math.round(t.protein)}`, "protein")}
-        ${this.ring(t.sugar / p.sugarMaxG, sugColor, `${Math.round(t.sugar)}`, "sugar")}
-        ${this.ring(this.state.active.waterMl / targetMl, "var(--water)", `${(this.state.active.waterMl / 1000).toFixed(1)}L`, "water")}
-      </div>
+      ${this.tripleRings(consumed, max, t.protein, p.proteinMinG, this.state.active.waterMl, targetMl)}
 
       ${badges.some((b) => b.earned) ? `<div class="badges">${badges.filter((b) => b.earned).map((b) => `<span class="badge" title="${b.name}"><i class="fa-solid ${b.icon}"></i></span>`).join("")}</div>` : ""}
 
