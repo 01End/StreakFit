@@ -684,7 +684,7 @@ const App = {
   },
   _animateNumber(el, newText) {
     if (!el || el.textContent === newText) return;
-    el.classList.add('flipping');
+    el.classList.add('flip-digit', 'flipping');
     setTimeout(() => {
       el.textContent = newText;
       el.classList.remove('flipping');
