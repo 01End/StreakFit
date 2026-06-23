@@ -1466,7 +1466,7 @@ const App = {
     if (name === "dashboard") { this._heroAnim = true; this.renderDashboard(); }
     if (name === "log" && window.renderLogTab) renderLogTab();
     if (name === "workouts" && window.renderWorkoutsTab) renderWorkoutsTab();
-    if (name === "social" && window.renderSocialTab) renderSocialTab();
+    if (name === "coach" && window.Coach) Coach.renderTab();
   },
 
   /* ---------- init ---------- */
@@ -1483,12 +1483,7 @@ const App = {
       b.addEventListener("click", () => this.switchTab(b.dataset.tab))
     );
 
-    if (location.hash.startsWith("#c=") && window.loadSocialFromHash) {
-      this.switchTab("social");
-      loadSocialFromHash();
-    } else {
-      this.switchTab("dashboard");
-    }
+    this.switchTab("dashboard");
 
     this._initGyro();
   },
