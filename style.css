@@ -49,8 +49,8 @@
   --glow-magenta: rgba(255, 46, 126, 0.5);
 
   /* heavy aggressive geometric numerals · minimalist sans labels */
-  --font-display: "Archivo", "Outfit", system-ui, sans-serif;
-  --font-body: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
 
   --radius: 20px;
   --radius-sm: 14px;
@@ -179,29 +179,43 @@ h3 {
 .muted { color: var(--muted); }
 .small { font-size: 0.82rem; }
 
-/* ---------- glass cards ---------- */
+/* ---- Liquid Glass card (iOS 26 material) ---- */
 .card {
   position: relative;
-  background: linear-gradient(165deg, var(--surface-2), var(--surface));
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
-  margin-bottom: 14px;
-  /* heavy glassmorphism */
-  backdrop-filter: blur(26px) saturate(1.35);
-  -webkit-backdrop-filter: blur(26px) saturate(1.35);
-  /* float over a heated surface: soft lava outer glow + depth */
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(48px) saturate(2.8) brightness(1.12);
+  -webkit-backdrop-filter: blur(48px) saturate(2.8) brightness(1.12);
+  border-radius: 22px;
+  border: 0.5px solid rgba(255,255,255,0.18);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.07) inset,
-    0 18px 44px -28px rgba(0, 0, 0, 0.95),
-    0 0 50px -26px rgba(255, 90, 24, 0.55);
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -1px 0 rgba(255,255,255,0.06),
+    0 2px 4px rgba(0,0,0,0.25),
+    0 20px 50px rgba(0,0,0,0.4);
   overflow: hidden;
+  margin-bottom: 10px;
+  padding: 16px;
 }
-.card::before { /* top edge highlight */
-  content: "";
-  position: absolute; top: 0; left: 16px; right: 16px; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+/* Top-edge specular line — curved glass catching light */
+.card::before {
+  content: '';
+  position: absolute; top: 0; left: 5%; right: 5%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+  pointer-events: none; z-index: 3;
 }
+/* Inner convex sheen — visual depth */
+.card::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: 22px;
+  background: linear-gradient(165deg,
+    rgba(255,255,255,0.13) 0%,
+    rgba(255,255,255,0.04) 22%,
+    transparent 45%
+  );
+  pointer-events: none; z-index: 2;
+}
+/* Lift all direct children above the ::after sheen */
+.card > * { position: relative; z-index: 4; }
 
 /* ---------- buttons ---------- */
 button { font: inherit; cursor: pointer; border: none; border-radius: 13px; }
