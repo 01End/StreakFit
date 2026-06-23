@@ -49,8 +49,8 @@
   --glow-magenta: rgba(255, 46, 126, 0.5);
 
   /* heavy aggressive geometric numerals · minimalist sans labels */
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
-  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
 
   --radius: 20px;
   --radius-sm: 14px;
@@ -183,7 +183,7 @@ h3 {
 .card {
   position: relative;
   background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(48px) saturate(2.8) brightness(1.12);
+  backdrop-filter: blur(48px) saturate(2.8) brightness(1.12); /* keep in sync ↓ */
   -webkit-backdrop-filter: blur(48px) saturate(2.8) brightness(1.12);
   border-radius: 22px;
   border: 0.5px solid rgba(255,255,255,0.18);
@@ -1009,6 +1009,7 @@ button { min-height: 0; }
 .ring-wrap:active { transform: scale(0.94); transition: transform 0.15s var(--ease); }
 
 /* ---- rotating gradient borders on the standout cards ---- */
+/* Note: these ::after rules (specificity 0-2-0) intentionally override .card::after (0-1-1) glass sheen on these cards */
 .goal-card, .xp-card, .share-card, .remaining-hero { isolation: isolate; }
 .goal-card::after, .xp-card::after, .share-card::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.4px; z-index: 1;
