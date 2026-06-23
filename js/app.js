@@ -698,7 +698,7 @@ const App = {
 
   _islandPillHTML(consumed, max, streak, t) {
     const remaining = max - consumed;
-    return `<div class="island-pill" onclick="this.classList.toggle('expanded')" role="button" aria-label="Today summary">
+    return `<div class="island-pill" onclick="App._islandExpanded=!App._islandExpanded;this.classList.toggle('expanded')" role="button" aria-label="Today summary">
     <span class="island-dot"></span>
     <span class="island-kcal">${consumed} kcal</span>
     <span class="island-streak"><i class="fa-solid fa-fire"></i> ${streak}</span>
@@ -809,7 +809,7 @@ const App = {
         </div>
       </header>
       <div class=”dash-greeting”>
-        <div class=”greeting-main”>${this._greeting().main}${this.state.profile?.name ? ', ' + this.state.profile.name.split(' ')[0] : ''}</div>
+        <div class=”greeting-main”>${this._greeting().main}</div>
         <div class=”greeting-sub”>${this._greeting().sub}</div>
       </div>
 
@@ -878,6 +878,11 @@ const App = {
         <div class="macro-row"><span>Workout burn</span><span>${this.state.active.exerciseBurn || 0} kcal</span></div>
         <div class="macro-row muted"><span>Base target</span><span>${p.calorieTarget} kcal · TDEE ${p.tdee}</span></div>
       </div>`;
+
+    if (App._islandExpanded) {
+      const pill = root.querySelector('.island-pill');
+      if (pill) pill.classList.add('expanded');
+    }
 
     document.getElementById("edit-profile").addEventListener("click", () => this.renderProfileForm(true));
     document.getElementById("open-progress").addEventListener("click", () => this.renderProgress());
