@@ -682,6 +682,47 @@ const App = {
     const patterns = { light: [10], medium: [20, 30, 20], strong: [30, 20, 30, 20, 50] };
     navigator.vibrate(patterns[type] || [10]);
   },
+
+  _initGyro() {
+    // Bail if prefers-reduced-motion
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // Bail if API not available
+    if (!window.DeviceOrientationEvent) return;
+
+    // iOS 13+ requires permission request
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // Only request on user gesture — listen for first tap, then request
+      const req = () => {
+        DeviceOrientationEvent.requestPermission()
+          .then(state => {
+            if (state === 'granted') {
+              document.body.classList.add('gyro-enabled');
+              window.addEventListener('deviceorientation', this._onGyro.bind(this), { passive: true });
+            }
+          })
+          .catch(() => {});
+        document.removeEventListener('touchend', req);
+      };
+      document.addEventListener('touchend', req, { once: true });
+    } else {
+      // Android / non-gated browsers — add listener directly
+      document.body.classList.add('gyro-enabled');
+      window.addEventListener('deviceorientation', this._onGyro.bind(this), { passive: true });
+    }
+  },
+
+  _onGyro(e) {
+    // beta = front-back tilt (-180 to 180), gamma = left-right tilt (-90 to 90)
+    const beta  = Math.max(-8, Math.min(8, (e.beta  || 0) - 45)); // 45° = neutral upright
+    const gamma = Math.max(-8, Math.min(8, (e.gamma || 0)));
+
+    // Apply to all .card elements currently in DOM
+    const cards = document.querySelectorAll('.card');
+    cards.forEach(card => {
+      card.style.transform = `perspective(800px) rotateX(${-beta * 0.5}deg) rotateY(${gamma * 0.5}deg)`;
+    });
+  },
+
   _animateNumber(el, newText) {
     if (!el || el.textContent === newText) return;
     el.classList.add('flip-digit', 'flipping');
@@ -1448,6 +1489,8 @@ const App = {
     } else {
       this.switchTab("dashboard");
     }
+
+    this._initGyro();
   },
 };
 

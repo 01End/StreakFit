@@ -213,6 +213,17 @@ h3 {
   overflow: hidden;
   margin-bottom: 10px;
   padding: 16px;
+  transition: transform 0.1s ease-out;
+  will-change: transform;
+}
+/* gyro tilt: class added by JS when deviceorientation is available */
+.gyro-enabled .card {
+  /* base state — transform applied via JS _onGyro */
+}
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none !important;
+  }
 }
 /* Top-edge specular line — curved glass catching light */
 .card::before {
