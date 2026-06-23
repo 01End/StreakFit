@@ -1333,3 +1333,49 @@ button { min-height: 0; }
 }
 .nutritionix-prompt i { color: #ffd060; flex-shrink: 0; }
 .nutritionix-prompt .dismiss { margin-left: auto; opacity: 0.45; font-size: 16px; }
+
+/* ---- Coach tab ---- */
+.coach-mode-pills {
+  display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.coach-mode-pills::-webkit-scrollbar { display: none; }
+.coach-mode-pill {
+  flex-shrink: 0;
+  padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 700;
+  background: rgba(255,255,255,0.07); border: 0.5px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.55); cursor: pointer; transition: all 0.2s;
+}
+.coach-mode-pill.active {
+  background: rgba(255,106,24,0.22); border-color: rgba(255,106,24,0.4);
+  color: var(--flame);
+  box-shadow: 0 0 16px rgba(255,106,24,0.25);
+}
+.coach-insight-card {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px; margin-bottom: 8px;
+}
+.coach-insight-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.coach-insight-body { flex: 1; }
+.coach-insight-title { font-size: 13px; font-weight: 800; margin-bottom: 3px; }
+.coach-insight-text  { font-size: 12px; line-height: 1.55; color: rgba(255,255,255,0.65); }
+.coach-insight-cta {
+  display: inline-block; margin-top: 8px; padding: 6px 14px;
+  border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer;
+  background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.18);
+}
+.coach-sim-grid { display: grid; gap: 10px; margin-bottom: 14px; }
+.coach-result-card { padding: 16px; text-align: center; }
+.coach-result-big  { font-size: 42px; font-weight: 900; letter-spacing: -0.06em; line-height: 1; }
+.coach-result-lbl  { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+.coach-slider-row  { margin-bottom: 14px; }
+.coach-slider-row label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+.coach-slider-row label span { font-weight: 800; color: var(--flame); }
+input[type="range"] {
+  width: 100%; accent-color: var(--flame); height: 4px;
+}
