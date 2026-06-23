@@ -1312,3 +1312,24 @@ button { min-height: 0; }
   .nav-btn.active .ico, .ring-fg, .ring-fill, .badges .badge, .hero-pill,
   .vessel.near .vessel-liquid, .heat-whitehot .heat-knob { animation: none !important; }
 }
+
+/* ---- Food source badges ---- */
+.source-badge {
+  display: inline-block; font-size: 9px; font-weight: 800;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 10px; vertical-align: middle; margin-left: 6px;
+}
+.source-fastfood { background: rgba(255,200,0,0.18);  color: #ffd060; border: 0.5px solid rgba(255,200,0,0.3); }
+.source-usda     { background: rgba(0,220,180,0.15);  color: var(--aqua); border: 0.5px solid rgba(0,220,180,0.28); }
+.source-packaged { background: rgba(177,92,255,0.15); color: var(--violet); border: 0.5px solid rgba(177,92,255,0.28); }
+.source-custom   { background: rgba(255,106,24,0.15); color: var(--flame);  border: 0.5px solid rgba(255,106,24,0.28); }
+
+/* ---- Nutritionix prompt banner ---- */
+.nutritionix-prompt {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 16px; margin-bottom: 10px;
+  background: rgba(255,200,0,0.08); border: 0.5px solid rgba(255,200,0,0.2);
+  font-size: 12px; color: rgba(255,255,255,0.7); cursor: pointer;
+}
+.nutritionix-prompt i { color: #ffd060; flex-shrink: 0; }
+.nutritionix-prompt .dismiss { margin-left: auto; opacity: 0.45; font-size: 16px; }
