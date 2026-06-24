@@ -277,3 +277,5 @@ const Coach = {
     Coach.renderTab();
   },
 };
+// `const` does not set window properties — expose explicitly so app.js guards work
+window.Coach = Coach;

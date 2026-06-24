@@ -101,3 +101,4 @@ const Measurements = {
     Measurements.renderSection('measurements-section');
   },
 };
+window.Measurements = Measurements;
