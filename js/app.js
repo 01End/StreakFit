@@ -543,6 +543,11 @@ const App = {
                   <label>OpenRouter API key<input name="openrouterKey" type="password" placeholder="sk-or-..." value="${(this.state.settings || {}).openrouterKey || ""}"></label>
                   <label>Vision model<input name="visionModel" value="${(this.state.settings || {}).visionModel || "meta-llama/llama-4-maverick:free"}"></label>
                   <p class="muted small">Stored on this device only. Free key: openrouter.ai → Keys. Leave blank to use the chat-handoff flow.</p>
+                 </details>
+                 <details class="advanced"><summary><i class="fa-solid fa-burger"></i> Fast Food Search (Nutritionix)</summary>
+                  <p class="muted small">Free key at nutritionix.com — unlocks McDonald's, KFC, Subway, Starbucks and 800+ chains. Stored on this device only.</p>
+                  <label>Nutritionix App ID<input id="pf-nutritionix-id" type="text" placeholder="e.g. a1b2c3d4" value="${(this.state.settings || {}).nutritionixAppId || ""}" autocomplete="off"></label>
+                  <label>Nutritionix App Key<input id="pf-nutritionix-key" type="password" placeholder="paste key here" value="${(this.state.settings || {}).nutritionixAppKey || ""}" autocomplete="off"></label>
                  </details>`
               : ""
           }
@@ -588,6 +593,13 @@ const App = {
         this.state.settings = this.state.settings || {};
         this.state.settings.openrouterKey = (fd.get("openrouterKey") || "").trim();
         this.state.settings.visionModel = (fd.get("visionModel") || "").trim() || "meta-llama/llama-4-maverick:free";
+      }
+      const nxId  = document.getElementById('pf-nutritionix-id');
+      const nxKey = document.getElementById('pf-nutritionix-key');
+      if (nxId || nxKey) {
+        this.state.settings = this.state.settings || {};
+        if (nxId)  this.state.settings.nutritionixAppId  = nxId.value.trim();
+        if (nxKey) this.state.settings.nutritionixAppKey = nxKey.value.trim();
       }
       this.save();
       this.renderDashboard();
