@@ -956,7 +956,7 @@ const App = {
         <div class="hero-pill ${remaining >= 0 ? "ok" : "bad"}">${remaining >= 0 ? `${remaining} kcal left` : `${Math.abs(remaining)} over`}</div>
       </div>
 
-      ${this.tripleRings(consumed, max, t.protein, p.proteinMinG, this.state.active.waterMl, targetMl)}
+      <div class="card rings-card">${this.tripleRings(consumed, max, t.protein, p.proteinMinG, this.state.active.waterMl, targetMl)}</div>
 
       ${badges.some((b) => b.earned) ? `<div class="badges">${badges.filter((b) => b.earned).map((b) => `<span class="badge" title="${b.name}"><i class="fa-solid ${b.icon}"></i></span>`).join("")}</div>` : ""}
 

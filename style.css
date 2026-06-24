@@ -1273,8 +1273,8 @@ button { min-height: 0; }
 
 /* ---- Triple activity rings (Apple Watch style) ---- */
 .triple-rings-wrap {
-  display: flex; align-items: center; gap: 20px;
-  padding: 20px 0 10px;
+  display: flex; align-items: center; justify-content: center; gap: 20px;
+  padding: 20px 12px 10px; flex-wrap: wrap;
 }
 .triple-rings-svg { flex-shrink: 0; overflow: visible; }
 .triple-rings-svg circle { fill: none; stroke-linecap: round; transform-origin: center; transform-box: fill-box; }
