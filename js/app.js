@@ -93,6 +93,17 @@ const App = {
       if (p.fiberTargetG == null) p.fiberTargetG = Math.max(25, Math.round((p.calorieTarget / 1000) * 14));
       if (p.sodiumMaxMg == null) p.sodiumMaxMg = 2300;
     }
+    // new premium fields
+    if (!s.measurements) s.measurements = [];
+    if (!s.settings.nutritionixAppId)  s.settings.nutritionixAppId  = '';
+    if (!s.settings.nutritionixAppKey) s.settings.nutritionixAppKey = '';
+    if (s.profile) {
+      const p = s.profile;
+      if (!p.goalType || p.goalType === 'lose') p.goalType = 'loseFat';
+      if (p.goalType === 'gain') p.goalType = 'buildMuscle';
+      if (!p.targetBodyFat)  p.targetBodyFat  = null;
+      if (!p.deadline)       p.deadline       = null;
+    }
   },
 
   save() {
@@ -155,24 +166,37 @@ const App = {
     }
     const tdee = bmr * (this.ACTIVITY_FACTORS[activityLevel] || 1.2);
     const floor = gender === "female" ? 1200 : 1500;
-    const goalType = profile.goalType || "lose";
+    const goalType = profile.goalType || "loseFat";
+
+    // Map new goal types to existing compute branches
+    const effectiveGoalType =
+      goalType === 'loseFat' || goalType === 'bodyFat' ? 'lose' :
+      goalType === 'buildMuscle' ? 'gain' :
+      goalType === 'recomp' ? 'lose' :
+      goalType === 'athletic' ? 'maintain' :
+      goalType;
 
     // Resolve the calorie target per goal type.
     let calorieTarget, appliedDeficit = 0, requestedDeficit = 0, surplus = 0, proteinPerKg = 2.0;
-    if (goalType === "maintain") {
+    if (goalType === 'recomp')      proteinPerKg = 2.5;
+    if (goalType === 'buildMuscle') proteinPerKg = 2.2;
+    if (goalType === 'loseFat')     proteinPerKg = 2.0;
+    if (goalType === 'athletic')    proteinPerKg = 2.0;
+
+    if (effectiveGoalType === "maintain") {
       calorieTarget = Math.round(tdee);
-      proteinPerKg = 1.8;
-    } else if (goalType === "gain") {
+      if (goalType === "maintain") proteinPerKg = 1.8;
+    } else if (effectiveGoalType === "gain") {
       let weeklyKg;
       if (profile.goalWeightKg && profile.goalWeeks && profile.goalWeightKg > kg) {
         weeklyKg = (profile.goalWeightKg - kg) / profile.goalWeeks;
       } else {
         weeklyKg = kg * ((profile.ratePct || 0.25) / 100);
       }
-      surplus = Math.min(Math.round((weeklyKg * this.KCAL_PER_KG_FAT) / 7), 500); // cap lean-gain surplus
+      surplus = Math.min(Math.round((weeklyKg * this.KCAL_PER_KG_FAT) / 7), 500);
       calorieTarget = Math.round(tdee + surplus);
     } else {
-      // lose
+      // lose (loseFat, bodyFat, recomp, legacy lose)
       let weeklyKg;
       if (profile.goalWeightKg && profile.goalWeeks && profile.goalWeightKg < kg) {
         weeklyKg = (kg - profile.goalWeightKg) / profile.goalWeeks;
@@ -250,8 +274,9 @@ const App = {
   /* ---------- goal projection (timeframe-based, lose or gain) ---------- */
   goalProjection() {
     const p = this.state.profile;
-    if (!p || (p.goalType || "lose") === "maintain") return null;
-    const gaining = (p.goalType || "lose") === "gain";
+    const _gt = p.goalType || "loseFat";
+    if (!p || _gt === "maintain" || _gt === "athletic") return null;
+    const gaining = _gt === "gain" || _gt === "buildMuscle";
     if (!p.goalWeightKg) return null;
     if (gaining && p.goalWeightKg <= p.weightKg) return null;
     if (!gaining && p.goalWeightKg >= p.weightKg) return null;
@@ -489,9 +514,12 @@ const App = {
           </label>
           <label>Goal
             <select name="goalType">
-              <option value="lose" ${sel(p.goalType || "lose", "lose")}>Lose fat</option>
-              <option value="maintain" ${sel(p.goalType, "maintain")}>Maintain</option>
-              <option value="gain" ${sel(p.goalType, "gain")}>Lean bulk / gain</option>
+              <option value="loseFat" ${sel(p.goalType || "loseFat", "loseFat")}>Lose fat</option>
+              <option value="buildMuscle" ${sel(p.goalType, "buildMuscle")}>Build muscle</option>
+              <option value="maintain" ${sel(p.goalType, "maintain")}>Maintain weight</option>
+              <option value="recomp" ${sel(p.goalType, "recomp")}>Body recomposition</option>
+              <option value="bodyFat" ${sel(p.goalType, "bodyFat")}>Hit body fat %</option>
+              <option value="athletic" ${sel(p.goalType, "athletic")}>Athletic performance</option>
             </select>
           </label>
           <p class="muted small">Fine-tune your pace and calories anytime with the calculator on the dashboard.</p>
@@ -859,7 +887,7 @@ const App = {
 
     const goalType = p.goalType || "lose";
     const gp = this.goalProjection();
-    const goalLabel = { lose: "Lose fat", maintain: "Maintain", gain: "Lean bulk" }[goalType];
+    const goalLabel = { lose: "Lose fat", loseFat: "Lose fat", maintain: "Maintain", gain: "Lean bulk", buildMuscle: "Build muscle", recomp: "Body recomp", bodyFat: "Hit body fat %", athletic: "Athletic performance" }[goalType] || "Goal";
     let goalCard;
     if (goalType === "maintain") {
       goalCard = `<div class="card goal-card">
