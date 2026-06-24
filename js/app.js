@@ -935,17 +935,17 @@ const App = {
     const badges = this.computeBadges();
 
     root.innerHTML = `
-      <header class=”dash-head”>
+      <header class="dash-head">
         ${this._islandPillHTML(consumed, max, this.state.streak, t)}
-        <div class=”head-btns”>
-          <button id=”open-reminders” class=”btn-ghost small” aria-label=”Reminders”><i class=”fa-solid fa-bell”></i></button>
-          <button id=”open-progress” class=”btn-ghost small” aria-label=”Progress”><i class=”fa-solid fa-chart-line”></i></button>
-          <button id=”edit-profile” class=”btn-ghost small” aria-label=”Settings”><i class=”fa-solid fa-gear”></i></button>
+        <div class="head-btns">
+          <button id="open-reminders" class="btn-ghost small" aria-label="Reminders"><i class="fa-solid fa-bell"></i></button>
+          <button id="open-progress" class="btn-ghost small" aria-label="Progress"><i class="fa-solid fa-chart-line"></i></button>
+          <button id="edit-profile" class="btn-ghost small" aria-label="Settings"><i class="fa-solid fa-gear"></i></button>
         </div>
       </header>
-      <div class=”dash-greeting”>
-        <div class=”greeting-main”>${this._greeting().main}</div>
-        <div class=”greeting-sub”>${this._greeting().sub}</div>
+      <div class="dash-greeting">
+        <div class="greeting-main">${this._greeting().main}</div>
+        <div class="greeting-sub">${this._greeting().sub}</div>
       </div>
 
       ${this.heatGauge()}
@@ -1674,8 +1674,13 @@ const App = {
   },
 
   openSettings() {
-    this.switchTab("dashboard");
-    requestAnimationFrame(() => this.renderProfileForm(true));
+    // Make the dashboard view active, then render the profile form into it.
+    // renderProfileForm writes into #view-dashboard but does not activate it,
+    // so the order matters and must be synchronous (rAF rendered out of order).
+    document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+    document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === "dashboard"));
+    document.getElementById("view-dashboard").classList.add("active");
+    this.renderProfileForm(true);
   },
 
   /* ---------- init ---------- */
