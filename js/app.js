@@ -1227,6 +1227,15 @@ const App = {
     }
   },
 
+  _emptyState(icon, title, body, cta = null, ctaAction = null) {
+    return `<div class="empty-state">
+      <div class="empty-state-icon"><i class="${icon}"></i></div>
+      <div class="empty-state-title">${title}</div>
+      <div>${body}</div>
+      ${cta ? `<button class="btn-primary" style="margin-top:16px;max-width:220px" onclick="${ctaAction}">${cta}</button>` : ''}
+    </div>`;
+  },
+
   _weightTrendSVG() {
     const weights = (this.state.weights || []).slice(-30);
     if (weights.length < 2) return '<div style="text-align:center;color:rgba(255,255,255,0.35);padding:30px;font-size:13px">Log at least 2 weight entries to see your trend.</div>';
@@ -1669,6 +1678,31 @@ const App = {
     this.switchTab("dashboard");
 
     this._initGyro();
+
+    // Pull-to-refresh
+    let _ptrStart = 0, _ptrEl = null;
+    document.addEventListener('touchstart', e => { _ptrStart = e.touches[0].clientY; }, { passive: true });
+    document.addEventListener('touchmove', e => {
+      const dy = e.touches[0].clientY - _ptrStart;
+      if (dy > 60 && window.scrollY === 0) {
+        if (!_ptrEl) {
+          _ptrEl = document.createElement('div');
+          _ptrEl.className = 'ptr-indicator';
+          _ptrEl.innerHTML = '<i class="fa-solid fa-arrow-rotate-right"></i>';
+          document.body.appendChild(_ptrEl);
+        }
+        _ptrEl.classList.add('visible');
+      }
+    }, { passive: true });
+    document.addEventListener('touchend', () => {
+      if (_ptrEl && _ptrEl.classList.contains('visible')) {
+        _ptrEl.classList.remove('visible');
+        setTimeout(() => { if (_ptrEl) { _ptrEl.remove(); _ptrEl = null; } }, 300);
+        App.checkRollover();
+        App.renderDashboard();
+        App.haptic('medium');
+      }
+    }, { passive: true });
   },
 };
 

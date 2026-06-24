@@ -433,7 +433,7 @@ function renderLogTab() {
               <span class="muted">${Math.round(f.kcal)} kcal/100g</span>
             </li>`;
           }).join('')
-        : `<li class="muted">No online matches.</li>`;
+        : App._emptyState('fa-solid fa-magnifying-glass', 'No results', 'Try searching "chicken breast", "Big Mac", or "Pringles".');
       onlineBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Search again`;
     } catch (err) {
       const msg = err.name === "AbortError" ? "Search timed out — check your connection." : "Search failed. Try again or use Quick Add below.";
