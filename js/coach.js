@@ -255,7 +255,9 @@ const Coach = {
       <div style="font-size:22px;font-weight:900;letter-spacing:-0.04em;margin-bottom:14px">Your Coach</div>
       ${pillsHtml}
       ${contentHtml}
+      <div id="measurements-section" style="margin-top:20px"></div>
     </div>`;
+    if (window.Measurements) Measurements.renderSection('measurements-section');
   },
 
   _applyPlan(kcal) {

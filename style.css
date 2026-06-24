@@ -1378,3 +1378,25 @@ button { min-height: 0; }
 input[type="range"] {
   width: 100%; accent-color: var(--flame); height: 4px;
 }
+
+/* ---- Measurements section ---- */
+.measurements-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
+}
+.meas-input-row { display: flex; flex-direction: column; gap: 4px; }
+.meas-input-row label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: rgba(255,255,255,0.45); }
+.meas-input-row input[type="number"] {
+  background: rgba(255,255,255,0.07); border: 0.5px solid rgba(255,255,255,0.18);
+  border-radius: 12px; padding: 10px 12px; color: #fff; font-size: 16px; font-weight: 700;
+  width: 100%;
+}
+.meas-history-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 0.5px solid rgba(255,255,255,0.06);
+  font-size: 13px;
+}
+.meas-history-date { color: rgba(255,255,255,0.45); font-size: 11px; }
+.meas-lean-badge {
+  display: inline-block; background: rgba(0,220,180,0.15); color: var(--aqua);
+  border-radius: 8px; padding: 2px 8px; font-size: 10px; font-weight: 800;
+}
