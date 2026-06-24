@@ -1129,6 +1129,16 @@ const App = {
           <div id="calorie-chart-section"></div>
         </div>
 
+        <div class="card" style="padding:16px">
+          <div style="font-size:13px;font-weight:800;margin-bottom:12px">Weight trend</div>
+          ${this._weightTrendSVG()}
+        </div>
+
+        <div class="card" style="padding:16px">
+          <div style="font-size:13px;font-weight:800;margin-bottom:10px">Activity heatmap</div>
+          ${this._heatmapCalendar()}
+        </div>
+
         <div class="prog-section">
           <h4>Consistency</h4>
           <div class="prog-grid">
@@ -1215,6 +1225,92 @@ const App = {
       const el = document.getElementById('calorie-chart-section');
       if (el) el.innerHTML = this._calorieBarChart(days);
     }
+  },
+
+  _weightTrendSVG() {
+    const weights = (this.state.weights || []).slice(-30);
+    if (weights.length < 2) return '<div style="text-align:center;color:rgba(255,255,255,0.35);padding:30px;font-size:13px">Log at least 2 weight entries to see your trend.</div>';
+
+    const vals = weights.map(w => w.kg);
+    const minV = Math.min(...vals) - 0.5;
+    const maxV = Math.max(...vals) + 0.5;
+    const W = 300, H = 100;
+    const scaleX = i => (i / (weights.length - 1)) * W;
+    const scaleY = v => H - ((v - minV) / (maxV - minV)) * H;
+
+    const pathD = weights.map((w, i) => `${i===0?'M':'L'}${scaleX(i).toFixed(1)} ${scaleY(w.kg).toFixed(1)}`).join(' ');
+    const areaD = `${pathD} L${W} ${H} L0 ${H} Z`;
+
+    const p = this.state.profile;
+    let projLine = '';
+    if (p && p.goalWeightKg) {
+      const gp = this.goalProjection();
+      if (gp && gp.etaWeeks) {
+        const projX = W + 30;
+        const projY = scaleY(p.goalWeightKg);
+        const lastX = scaleX(weights.length - 1);
+        const lastY = scaleY(vals[vals.length - 1]);
+        projLine = `<line x1="${lastX}" y1="${lastY}" x2="${projX}" y2="${projY}" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+          <circle cx="${projX}" cy="${projY}" r="3" fill="var(--gold)" opacity="0.7"/>`;
+      }
+    }
+
+    const lastX = scaleX(weights.length - 1);
+    const lastY = scaleY(vals[vals.length - 1]);
+
+    return `<svg viewBox="-10 -10 ${W+40} ${H+20}" style="width:100%;overflow:visible">
+      <defs>
+        <linearGradient id="wt-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--flame)" stop-opacity="0.4"/>
+          <stop offset="100%" stop-color="var(--flame)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${areaD}" fill="url(#wt-grad)"/>
+      <path d="${pathD}" fill="none" stroke="var(--flame)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${projLine}
+      <circle cx="${lastX}" cy="${lastY}" r="5" fill="var(--flame)" filter="drop-shadow(0 0 6px var(--flame))"/>
+      <text x="${lastX+7}" y="${lastY+4}" font-size="9" fill="rgba(255,255,255,0.7)">${vals[vals.length-1]}kg</text>
+      <text x="0" y="${H+16}" font-size="9" fill="rgba(255,255,255,0.35)">${weights[0].date.slice(5)}</text>
+      <text x="${W-10}" y="${H+16}" font-size="9" fill="rgba(255,255,255,0.35)">Today</text>
+    </svg>
+    <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;color:rgba(255,255,255,0.45)">
+      <span>Start: <b>${vals[0]}kg</b></span>
+      <span>Now: <b>${vals[vals.length-1]}kg</b></span>
+      <span>Change: <b style="color:${vals[vals.length-1]<vals[0]?'var(--good)':'var(--danger)'}">${(vals[vals.length-1]-vals[0]).toFixed(1)}kg</b></span>
+    </div>`;
+  },
+
+  _heatmapCalendar() {
+    const history = this.state.history || [];
+    const profile = this.state.profile;
+    const target = profile ? (profile.calorieTarget || 2000) : 2000;
+    const today = this.todayStr();
+    const cells = [];
+    for (let i = 89; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const ds = this.todayStr(d);
+      let kcal = 0;
+      if (ds === today) kcal = Math.round(this.dayTotals().kcal);
+      else {
+        const h = history.find(h => h.date === ds);
+        if (h) kcal = Math.round(h.kcal || 0);
+      }
+      const color = kcal === 0
+        ? 'rgba(255,255,255,0.06)'
+        : kcal > target * 1.05 ? 'rgba(255,60,60,0.55)'
+        : kcal > target * 0.9  ? 'rgba(255,106,24,0.7)'
+        : 'rgba(0,220,180,0.65)';
+      const title = `${ds}: ${kcal} kcal`;
+      cells.push(`<div title="${title}" style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></div>`);
+    }
+
+    return `<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-bottom:6px">Last 90 days</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${cells.join('')}</div>
+      <div style="display:flex;gap:10px;margin-top:8px;font-size:10px;color:rgba(255,255,255,0.35);align-items:center">
+        <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(0,220,180,0.65);display:inline-block"></span>Under</span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(255,106,24,0.7);display:inline-block"></span>On target</span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(255,60,60,0.55);display:inline-block"></span>Over</span>
+      </div>`;
   },
 
   /* ---------- sleep & mood insights ---------- */
