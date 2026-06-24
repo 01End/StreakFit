@@ -1673,6 +1673,11 @@ const App = {
     if (name === "coach" && window.Coach) Coach.renderTab();
   },
 
+  openSettings() {
+    this.switchTab("dashboard");
+    requestAnimationFrame(() => this.renderProfileForm(true));
+  },
+
   /* ---------- init ---------- */
   init() {
     this.load();

@@ -182,6 +182,7 @@ const Coach = {
             ${i.cta ? `<div class="coach-insight-cta" onclick="${i.ctaAction}">${i.cta}</div>` : ''}
           </div>
         </div>`).join('');
+      contentHtml += `<button class="btn-ghost" style="width:100%;margin-top:8px;touch-action:manipulation" onclick="App.renderCalculator()"><i class="fa-solid fa-bullseye"></i> Adjust Goals</button>`;
 
     } else if (mode === 'simulator') {
       const wkg   = p ? p.weightKg   : 80;
@@ -252,7 +253,12 @@ const Coach = {
     }
 
     root.innerHTML = `<div style="padding:0 0 24px">
-      <div style="font-size:22px;font-weight:900;letter-spacing:-0.04em;margin-bottom:14px">Your Coach</div>
+      <div class="coach-tab-head">
+        <div style="font-size:22px;font-weight:900;letter-spacing:-0.04em">Your Coach</div>
+        <button class="btn-ghost small" style="touch-action:manipulation" onclick="App.openSettings()" aria-label="Settings">
+          <i class="fa-solid fa-gear"></i> Settings
+        </button>
+      </div>
       ${pillsHtml}
       ${contentHtml}
       <div id="measurements-section" style="margin-top:20px"></div>

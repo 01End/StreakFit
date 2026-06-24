@@ -1341,7 +1341,7 @@ button { min-height: 0; }
 }
 .coach-mode-pills::-webkit-scrollbar { display: none; }
 .coach-mode-pill {
-  flex-shrink: 0;
+  flex-shrink: 0; touch-action: manipulation;
   padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 700;
   background: rgba(255,255,255,0.07); border: 0.5px solid rgba(255,255,255,0.14);
   color: rgba(255,255,255,0.55); cursor: pointer; transition: all 0.2s;
@@ -1367,7 +1367,11 @@ button { min-height: 0; }
 .coach-insight-cta {
   display: inline-block; margin-top: 8px; padding: 6px 14px;
   border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer;
+  touch-action: manipulation;
   background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.18);
+}
+.coach-tab-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
 }
 .coach-result-card { padding: 16px; text-align: center; }
 .coach-result-big  { font-size: 42px; font-weight: 900; letter-spacing: -0.06em; line-height: 1; }
@@ -1444,12 +1448,9 @@ input[type="range"] {
 .empty-state-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.4; }
 .empty-state-title { font-size: 16px; font-weight: 800; color: rgba(255,255,255,0.55); margin-bottom: 8px; }
 
-/* ---- Spring physics for tab switches ---- */
-.view { opacity: 0; transform: translateY(12px) scale(0.98); transition: none; }
-.view.active {
-  opacity: 1; transform: translateY(0) scale(1);
-  transition: opacity 0.35s var(--spring), transform 0.35s var(--spring);
-}
+/* ---- Spring physics for tab switches (children animate in via rise-in) ---- */
+/* .view uses display:none / display:block — opacity transitions conflict with that;
+   the per-child rise-in keyframe already provides the spring entrance effect. */
 
 /* ---- Pull to refresh animation ---- */
 @keyframes ptr-spin {
