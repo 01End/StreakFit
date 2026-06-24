@@ -19,6 +19,7 @@ const Measurements = {
 
     const record = {
       date:     App.todayStr(),
+      weightKg: w,
       waist:    entry.waist     || null,
       chest:    entry.chest     || null,
       arms:     entry.arms      || null,

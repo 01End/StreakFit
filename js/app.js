@@ -174,7 +174,7 @@ const App = {
       goalType === 'buildMuscle' ? 'gain' :
       goalType === 'recomp' ? 'lose' :
       goalType === 'athletic' ? 'maintain' :
-      goalType;
+      'lose'; // explicit fallback for any unknown legacy type
 
     // Resolve the calorie target per goal type.
     let calorieTarget, appliedDeficit = 0, requestedDeficit = 0, surplus = 0, proteinPerKg = 2.0;
@@ -185,7 +185,7 @@ const App = {
 
     if (effectiveGoalType === "maintain") {
       calorieTarget = Math.round(tdee);
-      if (goalType === "maintain") proteinPerKg = 1.8;
+      if (goalType === "maintain") proteinPerKg = 1.8; // athletic keeps 2.0 set above — higher protein needed
     } else if (effectiveGoalType === "gain") {
       let weeklyKg;
       if (profile.goalWeightKg && profile.goalWeeks && profile.goalWeightKg > kg) {
