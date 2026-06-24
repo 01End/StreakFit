@@ -1124,9 +1124,9 @@ const App = {
 
         <div class="prog-section">${adaptiveCard}</div>
 
-        <div class="prog-section">
-          <h4>Calories vs target</h4>
-          ${calChart}
+        <div class="card" style="padding:16px">
+          <div style="font-size:13px;font-weight:800;margin-bottom:12px">Calorie history</div>
+          <div id="calorie-chart-section"></div>
         </div>
 
         <div class="prog-section">
@@ -1142,6 +1142,7 @@ const App = {
       </div>`;
     document.body.appendChild(modal);
     requestAnimationFrame(() => modal.classList.add("open"));
+    document.getElementById('calorie-chart-section').innerHTML = App._calorieBarChart(7);
     modal.addEventListener("click", (e) => {
       if (e.target === modal || e.target.closest(".ex-close")) modal.remove();
     });
@@ -1156,6 +1157,64 @@ const App = {
       modal.remove();
       this.renderDashboard();
     });
+  },
+
+  /* ---------- calorie bar chart (progress modal) ---------- */
+  _calorieBarChart(days = 7) {
+    const today = this.todayStr();
+    const history = this.state.history || [];
+    const profile = this.state.profile;
+    const target = profile ? (profile.calorieTarget || 2000) : 2000;
+    const bars = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const ds = this.todayStr(d);
+      const dayLabel = i === 0 ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short' });
+      let kcal = 0;
+      if (ds === today) {
+        kcal = Math.round(this.dayTotals().kcal);
+      } else {
+        const h = history.find(h => h.date === ds);
+        if (h) kcal = Math.round(h.kcal || 0);
+      }
+      const pct = target > 0 ? Math.min(kcal / target, 1.3) : 0;
+      const color = kcal === 0 ? 'rgba(255,255,255,0.08)'
+        : kcal > target * 1.05 ? 'var(--danger)'
+        : kcal > target * 0.9  ? 'var(--flame)'
+        : 'var(--aqua)';
+      const glow = kcal > 0 && kcal >= target * 0.9 && kcal <= target * 1.05
+        ? `box-shadow:0 0 10px ${color}` : '';
+      bars.push({ ds, dayLabel, kcal, pct, color, glow, today: ds === today });
+    }
+
+    const maxPct = Math.max(...bars.map(b => b.pct), 0.01);
+    const barHtml = bars.map(b =>
+      `<div class="chart-bar-col">
+        <div class="chart-bar" style="height:${(b.pct / maxPct * 100).toFixed(1)}%;background:${b.color};${b.glow};${b.today?'border:1.5px solid rgba(255,255,255,0.3)':''}"></div>
+        <div class="chart-bar-lbl">${b.dayLabel}</div>
+      </div>`
+    ).join('');
+
+    const onTarget = bars.filter(b => b.kcal > 0 && b.kcal >= target * 0.9 && b.kcal <= target * 1.1).length;
+    const totalDaysLogged = bars.filter(b => b.kcal > 0).length;
+
+    return `
+      <div class="chart-toggle">
+        <button class="${days===7?'active':''}" onclick="App._renderProgressSection('calories',7)">7 days</button>
+        <button class="${days===30?'active':''}" onclick="App._renderProgressSection('calories',30)">30 days</button>
+      </div>
+      <div class="chart-bar-wrap">${barHtml}</div>
+      <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:rgba(255,255,255,0.45)">
+        <span><b style="color:var(--flame)">${onTarget}</b>/${totalDaysLogged} days on target</span>
+        <span>Target: <b>${target}</b> kcal</span>
+      </div>`;
+  },
+
+  _renderProgressSection(type, days) {
+    if (type === 'calories') {
+      const el = document.getElementById('calorie-chart-section');
+      if (el) el.innerHTML = this._calorieBarChart(days);
+    }
   },
 
   /* ---------- sleep & mood insights ---------- */

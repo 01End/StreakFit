@@ -1400,3 +1400,18 @@ input[type="range"] {
   display: inline-block; background: rgba(0,220,180,0.15); color: var(--aqua);
   border-radius: 8px; padding: 2px 8px; font-size: 10px; font-weight: 800;
 }
+
+/* ---- Charts ---- */
+.chart-bar-wrap { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 0 0 8px; }
+.chart-bar-col  { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+.chart-bar      { width: 100%; border-radius: 6px 6px 0 0; min-height: 4px; transition: height 0.6s var(--spring); }
+.chart-bar-lbl  { font-size: 9px; color: rgba(255,255,255,0.35); text-align: center; }
+.chart-toggle   { display: flex; gap: 6px; margin-bottom: 12px; }
+.chart-toggle button {
+  padding: 5px 12px; border-radius: 12px; font-size: 11px; font-weight: 700;
+  background: rgba(255,255,255,0.07); border: 0.5px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.5); cursor: pointer;
+}
+.chart-toggle button.active {
+  background: rgba(255,106,24,0.2); border-color: var(--flame); color: var(--flame);
+}
