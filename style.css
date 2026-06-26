@@ -952,6 +952,8 @@ summary > h3 > i:first-child {
   width: 42px; height: 42px; padding: 0; border-radius: 13px;
   display: inline-grid; place-items: center; font-size: 1.02rem; color: var(--text);
 }
+/* icon-only header buttons: cancel the leading-icon gap so the glyph sits dead-center */
+.head-btns .btn-ghost.small > i:first-child { margin-right: 0; }
 .head-btns .btn-ghost.small:hover { color: var(--lime); border-color: var(--lime); }
 
 /* Quest checkboxes */
@@ -1336,13 +1338,12 @@ button { min-height: 0; }
 
 /* ---- Coach tab ---- */
 .coach-mode-pills {
-  display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  display: flex; gap: 6px; margin-bottom: 16px;
 }
-.coach-mode-pills::-webkit-scrollbar { display: none; }
 .coach-mode-pill {
-  flex-shrink: 0; touch-action: manipulation;
-  padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 700;
+  flex: 1 1 0; min-width: 0; touch-action: manipulation; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 9px 8px; border-radius: 16px; font-size: 12px; font-weight: 700;
   background: rgba(255,255,255,0.07); border: 0.5px solid rgba(255,255,255,0.14);
   color: rgba(255,255,255,0.55); cursor: pointer; transition: all 0.2s;
 }

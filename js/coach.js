@@ -164,9 +164,9 @@ const Coach = {
       `<button class="coach-mode-pill${active?' active':''}" onclick="Coach._mode='${id}';Coach.renderTab()">${label}</button>`;
 
     const pillsHtml = `<div class="coach-mode-pills">
-      ${modeHtml('insights','Daily Insights', mode==='insights')}
-      ${modeHtml('simulator','What-If',        mode==='simulator')}
-      ${modeHtml('planner',  'Reverse Planner',mode==='planner')}
+      ${modeHtml('insights','Insights',  mode==='insights')}
+      ${modeHtml('simulator','What-If',  mode==='simulator')}
+      ${modeHtml('planner',  'Planner',  mode==='planner')}
     </div>`;
 
     let contentHtml = '';

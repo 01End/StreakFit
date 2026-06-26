@@ -95,8 +95,7 @@ const App = {
     }
     // new premium fields
     if (!s.measurements) s.measurements = [];
-    if (!s.settings.nutritionixAppId)  s.settings.nutritionixAppId  = '';
-    if (!s.settings.nutritionixAppKey) s.settings.nutritionixAppKey = '';
+    if (!s.settings.usdaApiKey) s.settings.usdaApiKey = '';
     if (s.profile) {
       const p = s.profile;
       if (!p.goalType || p.goalType === 'lose') p.goalType = 'loseFat';
@@ -544,10 +543,9 @@ const App = {
                   <label>Vision model<input name="visionModel" value="${(this.state.settings || {}).visionModel || "meta-llama/llama-4-maverick:free"}"></label>
                   <p class="muted small">Stored on this device only. Free key: openrouter.ai → Keys. Leave blank to use the chat-handoff flow.</p>
                  </details>
-                 <details class="advanced"><summary><i class="fa-solid fa-burger"></i> Fast Food Search (Nutritionix)</summary>
-                  <p class="muted small">Free key at nutritionix.com — unlocks McDonald's, KFC, Subway, Starbucks and 800+ chains. Stored on this device only.</p>
-                  <label>Nutritionix App ID<input id="pf-nutritionix-id" type="text" placeholder="e.g. a1b2c3d4" value="${(this.state.settings || {}).nutritionixAppId || ""}" autocomplete="off"></label>
-                  <label>Nutritionix App Key<input id="pf-nutritionix-key" type="password" placeholder="paste key here" value="${(this.state.settings || {}).nutritionixAppKey || ""}" autocomplete="off"></label>
+                 <details class="advanced"><summary><i class="fa-solid fa-burger"></i> Faster food search (optional, free)</summary>
+                  <p class="muted small">Online search already works free (Open Food Facts + USDA). For higher rate limits and more branded/fast-food hits, grab a <strong>free</strong> USDA key — instant, no credit card — at api.data.gov/signup. Stored on this device only.</p>
+                  <label>USDA API key<input id="pf-usda-key" type="text" placeholder="leave blank to use the shared demo key" value="${(this.state.settings || {}).usdaApiKey || ""}" autocomplete="off"></label>
                  </details>`
               : ""
           }
@@ -594,12 +592,10 @@ const App = {
         this.state.settings.openrouterKey = (fd.get("openrouterKey") || "").trim();
         this.state.settings.visionModel = (fd.get("visionModel") || "").trim() || "meta-llama/llama-4-maverick:free";
       }
-      const nxId  = document.getElementById('pf-nutritionix-id');
-      const nxKey = document.getElementById('pf-nutritionix-key');
-      if (nxId || nxKey) {
+      const usdaKey = document.getElementById('pf-usda-key');
+      if (usdaKey) {
         this.state.settings = this.state.settings || {};
-        if (nxId)  this.state.settings.nutritionixAppId  = nxId.value.trim();
-        if (nxKey) this.state.settings.nutritionixAppKey = nxKey.value.trim();
+        this.state.settings.usdaApiKey = usdaKey.value.trim();
       }
       this.save();
       this.renderDashboard();
@@ -897,38 +893,8 @@ const App = {
     else
       verdicts.push(`<li class="v-bad"><i class="fa-solid fa-ban"></i> Sugar over by ${Math.round(t.sugar - p.sugarMaxG)} g</li>`);
 
-    const goalType = p.goalType || "lose";
-    const gp = this.goalProjection();
-    const goalLabel = { lose: "Lose fat", loseFat: "Lose fat", maintain: "Maintain", gain: "Lean bulk", buildMuscle: "Build muscle", recomp: "Body recomp", bodyFat: "Hit body fat %", athletic: "Athletic performance" }[goalType] || "Goal";
-    let goalCard;
-    if (goalType === "maintain") {
-      goalCard = `<div class="card goal-card">
-           <h3><i class="fa-solid fa-bullseye"></i> ${goalLabel}</h3>
-           <div class="goal-big">${p.calorieTarget} <span class="muted">kcal/day</span></div>
-           <div class="muted small">Eating at maintenance (TDEE ${p.tdee})</div>
-           <button id="adjust-goal" class="btn-ghost">Adjust goal</button>
-         </div>`;
-    } else if (gp) {
-      const warn = !gp.safe
-        ? `<div class="goal-warn"><i class="fa-solid fa-triangle-exclamation"></i> That pace (${gp.requestedWeeklyKg} kg/wk) is faster than the safe max of ${gp.maxSafeWeeklyKg} kg/wk — calories are capped safely, so realistic finish is shown below.</div>`
-        : gp.floored
-        ? `<div class="goal-warn"><i class="fa-solid fa-circle-info"></i> Calories capped at the safe limit, so the realistic finish is a bit later than your chosen date.</div>`
-        : "";
-      goalCard = `<div class="card goal-card">
-           <h3><i class="fa-solid fa-bullseye"></i> ${goalLabel}</h3>
-           <div class="goal-big">${gp.kgToGo} kg <span class="muted">${gp.gaining ? "to gain" : "to go"}</span></div>
-           <div class="goal-line">~${gp.etaWeeks} weeks → <strong>${this.prettyDate(gp.target)}</strong></div>
-           <div class="muted small">~${gp.achievableWeeklyKg} kg/wk · ${gp.gaining ? "surplus" : "deficit"} ${gp.gap} kcal/day${gp.chosenWeeks ? ` · target ${gp.chosenWeeks} wk` : ""}</div>
-           ${warn}
-           <button id="adjust-goal" class="btn-ghost">Adjust goal</button>
-         </div>`;
-    } else {
-      goalCard = `<div class="card goal-card muted-card">
-           <h3><i class="fa-solid fa-bullseye"></i> ${goalLabel}</h3>
-           <p class="muted small">Open the calculator to set your pace, target weight + timeframe, or a custom calorie target.</p>
-           <button id="adjust-goal" class="btn-ghost">Open calorie calculator</button>
-         </div>`;
-    }
+    // Goal/projection card now lives on the Coach tab (Daily Insights + Adjust Goals),
+    // so it's intentionally omitted from the dashboard to avoid duplication.
 
     const targetMl = p.waterTargetMl;
     if (window.Gamify) Gamify.checkDaily(t); // award daily XP + unlock achievements before rendering counts
@@ -940,7 +906,6 @@ const App = {
         <div class="head-btns">
           <button id="open-reminders" class="btn-ghost small" aria-label="Reminders"><i class="fa-solid fa-bell"></i></button>
           <button id="open-progress" class="btn-ghost small" aria-label="Progress"><i class="fa-solid fa-chart-line"></i></button>
-          <button id="edit-profile" class="btn-ghost small" aria-label="Settings"><i class="fa-solid fa-gear"></i></button>
         </div>
       </header>
       <div class="dash-greeting">
@@ -963,8 +928,6 @@ const App = {
       ${window.Gamify ? Gamify.dashboardHTML() : ""}
 
       <ul class="verdicts">${verdicts.join("")}</ul>
-
-      ${goalCard}
 
       <div class="card">
         <div class="wk-head"><h3><i class="fa-solid fa-droplet i-cyan"></i> Water</h3><span id="water-amount" class="water-amount">${(this.state.active.waterMl / 1000).toFixed(2)} / ${(targetMl / 1000).toFixed(2)} L</span></div>
@@ -1014,10 +977,11 @@ const App = {
       if (pill) pill.classList.add('expanded');
     }
 
-    document.getElementById("edit-profile").addEventListener("click", () => this.renderProfileForm(true));
-    document.getElementById("open-progress").addEventListener("click", () => this.renderProgress());
-    document.getElementById("open-reminders").addEventListener("click", () => { if (window.Reminders) Reminders.open(); });
-    document.getElementById("adjust-goal").addEventListener("click", () => this.renderCalculator());
+    // edit-profile (gear) and adjust-goal now live on the Coach tab — guard in case absent.
+    document.getElementById("edit-profile")?.addEventListener("click", () => this.renderProfileForm(true));
+    document.getElementById("open-progress")?.addEventListener("click", () => this.renderProgress());
+    document.getElementById("open-reminders")?.addEventListener("click", () => { if (window.Reminders) Reminders.open(); });
+    document.getElementById("adjust-goal")?.addEventListener("click", () => this.renderCalculator());
     if (window.Gamify) Gamify.bindDashboard();
 
     // water controls

@@ -106,28 +106,16 @@ async function searchFoodsOnline(query) {
     ).then(r => r.json()).then(d => _parseOFF(d.products)).catch(() => [])
   );
 
-  // 2. USDA FoodData Central (always — 500k+ raw/generic foods)
+  // 2. USDA FoodData Central (always — 500k+ raw/generic foods + branded/fast-food).
+  // Uses the user's free api.data.gov key if set, else the shared DEMO_KEY (rate-limited).
+  // The "Branded" dataType already covers McDonald's, KFC, etc. — no paid API needed.
+  const usdaKey = (settings.usdaApiKey && settings.usdaApiKey.trim()) || 'DEMO_KEY';
   requests.push(
     _fetchTimeout(
-      `https://api.nal.usda.gov/fdc/v1/foods/search?query=${q}&api_key=DEMO_KEY&pageSize=10&dataType=Foundation,SR%20Legacy,Branded`,
+      `https://api.nal.usda.gov/fdc/v1/foods/search?query=${q}&api_key=${encodeURIComponent(usdaKey)}&pageSize=15&dataType=Foundation,SR%20Legacy,Branded`,
       12000
     ).then(r => r.json()).then(d => _parseUSDA(d.foods)).catch(() => [])
   );
-
-  // 3. Nutritionix (only if user has configured keys — fast food chains)
-  if (settings.nutritionixAppId && settings.nutritionixAppKey) {
-    requests.push(
-      _fetchTimeout(
-        `https://trackapi.nutritionix.com/v2/search/instant?query=${q}`,
-        12000,
-        { headers: {
-            'x-app-id': settings.nutritionixAppId,
-            'x-app-key': settings.nutritionixAppKey,
-            'x-remote-user-id': '0',
-        }}
-      ).then(r => r.json()).then(d => _parseNutritionix(d)).catch(() => [])
-    );
-  }
 
   const settled = await Promise.allSettled(requests);
   const combined = settled.flatMap(r => r.status === 'fulfilled' ? r.value : []);
@@ -414,12 +402,6 @@ function renderLogTab() {
     try {
       const results = await searchFoodsOnline(q);
       onlineEl._results = results;
-      if (!settings.nutritionixAppId && !settings._nutritionixPromptDismissed && !document.querySelector('.nutritionix-prompt')) {
-        const promptEl = document.createElement('div');
-        promptEl.className = 'nutritionix-prompt';
-        promptEl.innerHTML = `<i class="fa-solid fa-burger"></i> Add a free Nutritionix key in Settings for McDonald's, KFC & 800+ fast food chains. <span class="dismiss" onclick="App.state.settings._nutritionixPromptDismissed=true;App.save();this.closest('.nutritionix-prompt').remove()">✕</span>`;
-        onlineEl.parentNode.insertBefore(promptEl, onlineEl);
-      }
       onlineEl.innerHTML = results.length
         ? results.map((f, idx) => {
             const badgeClass = f._source === 'fastfood' ? 'source-fastfood'
