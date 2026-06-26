@@ -289,6 +289,17 @@ function renderLogTab() {
   const logged = App.state.active.foods;
 
   root.innerHTML = `
+    <div class="card smartlog-card">
+      <div class="smartlog-head">✨ Quick log</div>
+      <input id="smartlog-input" class="search" type="text" placeholder="e.g. 2 eggs, toast and a banana" autocomplete="off">
+      <div class="smartlog-actions">
+        <button id="smartlog-go" class="btn-primary">Log</button>
+        <button id="smartlog-suggest" class="btn-ghost">What can I eat?</button>
+      </div>
+      <div id="smartlog-preview"></div>
+      <div id="smartlog-suggestions"></div>
+    </div>
+
     <h2>Log Food</h2>
 
     <div class="card">
@@ -365,6 +376,17 @@ function renderLogTab() {
   const onlineEl = document.getElementById("online-results");
   const quickFoods = document.getElementById("quick-foods");
   renderQuickFoods();
+
+  // SmartLog Quick Log wiring
+  const slInput = document.getElementById('smartlog-input');
+  const slGo    = document.getElementById('smartlog-go');
+  const slSug   = document.getElementById('smartlog-suggest');
+  if (window.SmartLog && slGo) {
+    slGo.addEventListener('click', () => SmartLog.run(slInput.value));
+    slInput.addEventListener('keydown', e => { if (e.key === 'Enter') SmartLog.run(slInput.value); });
+    slSug.addEventListener('click', () => SmartLog.suggest());
+  }
+
   searchEl.addEventListener("input", () => {
     const q = searchEl.value.trim();
     onlineBtn.style.display = q ? "block" : "none";
