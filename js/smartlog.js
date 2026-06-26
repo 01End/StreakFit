@@ -256,10 +256,123 @@ const SmartLog = (() => {
     return Promise.all(items.map(item => resolve(item)));
   }
 
+  function _sourceLabel(src) {
+    return { db: 'DB', online: 'Online', ai: 'AI', manual: 'Manual' }[src] || src;
+  }
+
+  function _previewRowHTML(row, idx) {
+    const e = row.entry;
+    const isManual = row._source === 'manual';
+    return `<div class="sl-row${isManual ? ' sl-manual' : ''}" data-idx="${idx}">
+      <span class="sl-name">${row.food.name}</span>
+      <label class="sl-grams-label">
+        <input class="sl-grams" type="number" min="1" step="1" value="${Math.round(row.grams)}" data-idx="${idx}"> g
+      </label>
+      <span class="sl-kcal">${Math.round(e.kcal)} kcal</span>
+      <span class="sl-macros muted small">${e.protein.toFixed(1)}P · ${e.carbs.toFixed(1)}C · ${e.fats.toFixed(1)}F</span>
+      <span class="source-badge source-${row._source}">${_sourceLabel(row._source)}</span>
+      <button class="sl-remove" data-idx="${idx}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
+    </div>`;
+  }
+
+  function _footerHTML(rows) {
+    const tot = rows.reduce((acc, r) => {
+      acc.kcal += r.entry.kcal; acc.protein += r.entry.protein;
+      acc.carbs += r.entry.carbs; acc.fats += r.entry.fats;
+      return acc;
+    }, { kcal: 0, protein: 0, carbs: 0, fats: 0 });
+    const consumed = App.dayTotals ? App.dayTotals().kcal : 0;
+    const max = App.dailyMax ? App.dailyMax() : 2000;
+    const remaining = Math.round(max - consumed - tot.kcal);
+    return `<div class="sl-footer">
+      <strong>${Math.round(tot.kcal)} kcal · ${tot.protein.toFixed(1)}P · ${tot.carbs.toFixed(1)}C · ${tot.fats.toFixed(1)}F</strong>
+      <span class="muted small">Leaves you ${remaining} kcal today</span>
+    </div>
+    <div class="sl-btns">
+      <button id="sl-log-all" class="btn-primary">Log all</button>
+      <button id="sl-cancel" class="btn-ghost">Cancel</button>
+    </div>`;
+  }
+
+  let _rows = []; // module-level so event handlers can reference after grams edits
+
+  function _renderPreview(rows) {
+    _rows = rows;
+    const container = document.getElementById('smartlog-preview');
+    if (!container) return;
+
+    if (!rows || rows.length === 0) {
+      container.innerHTML = App._emptyState
+        ? App._emptyState('fa-solid fa-utensils', 'Nothing found', 'Try "2 eggs and toast" or "100g chicken rice".')
+        : '<p class="muted small">Nothing found — try "2 eggs and toast".</p>';
+      return;
+    }
+
+    container.innerHTML =
+      rows.map((r, i) => _previewRowHTML(r, i)).join('') +
+      _footerHTML(rows);
+
+    // Live grams update — recomputes entry and re-renders footer
+    container.querySelectorAll('.sl-grams').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = +inp.dataset.idx;
+        const newG = Math.max(+inp.value || 1, 1);
+        _rows[idx] = { ..._rows[idx], grams: newG, entry: scaleMacros(_rows[idx].food, newG) };
+        const oldFooter = container.querySelector('.sl-footer');
+        if (oldFooter) oldFooter.outerHTML = _footerHTML(_rows);
+        _bindFooterBtns(container);
+      });
+    });
+
+    // Remove a row
+    container.querySelectorAll('.sl-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        _rows.splice(+btn.dataset.idx, 1);
+        _renderPreview(_rows);
+      });
+    });
+
+    _bindFooterBtns(container);
+  }
+
+  function _bindFooterBtns(container) {
+    const logBtn = container.querySelector('#sl-log-all');
+    if (logBtn) logBtn.addEventListener('click', () => {
+      _rows.forEach(r => addScaledFood(r.food, r.grams));
+      _rows = [];
+      container.innerHTML = '';
+      const inp = document.getElementById('smartlog-input');
+      if (inp) inp.value = '';
+      if (window.renderLogTab) renderLogTab();
+      if (window.App && App.renderDashboard) App.renderDashboard();
+      if (window.App && App.haptic) App.haptic('medium');
+    });
+
+    const cancelBtn = container.querySelector('#sl-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => {
+      _rows = [];
+      container.innerHTML = '';
+    });
+  }
+
+  // Public entry point: parse text → resolve → show preview
+  async function run(text) {
+    if (!text || !text.trim()) return;
+    const preview = document.getElementById('smartlog-preview');
+    if (preview) preview.innerHTML = '<p class="muted small sl-loading"><i class="fa-solid fa-spinner fa-spin"></i> Analyzing…</p>';
+    try {
+      const rows = await parseAndResolve(text);
+      _renderPreview(rows);
+    } catch (_) {
+      if (preview) preview.innerHTML = '<p class="muted small">Could not parse — try Quick Add below.</p>';
+    }
+  }
+
   const pub = {
     DEFAULT_MODEL, PORTIONS, NUMBER_WORDS,
     parseLocal, unitToGrams, scoreSuggestion,
     parse, resolve, parseAndResolve,
+    run, _renderPreview,
   };
   window.SmartLog = pub;
   return pub;
