@@ -374,11 +374,117 @@ const SmartLog = (() => {
     }
   }
 
+  function _renderSuggestions(suggestions, container) {
+    if (!container) return;
+    if (!suggestions || suggestions.length === 0) {
+      container.innerHTML = '<p class="muted small">Log more foods to get personalized suggestions.</p>';
+      return;
+    }
+    container.innerHTML = `<div class="sl-suggest-head">What can I eat?</div>` +
+      suggestions.map(s => {
+        const e = scaleMacros(s.food, s.grams);
+        return `<div class="sl-suggest-card">
+          <span class="sl-sug-name">${_esc(s.food.name)}</span>
+          <span class="sl-sug-meta muted small">${Math.round(s.grams)}g · ${Math.round(e.kcal)} kcal · ${e.protein.toFixed(1)}P</span>
+          <button class="btn-ghost sl-sug-log" data-name="${_esc(s.food.name)}" data-grams="${Math.round(s.grams)}">Log it</button>
+        </div>`;
+      }).join('');
+    _bindSuggestLogBtns(container);
+  }
+
+  function _appendAISuggestions(names, container) {
+    if (!container || !names || names.length === 0) return;
+    container.innerHTML += `<div class="sl-suggest-head sl-ai-head">✨ AI Ideas</div>` +
+      names.map(name => `<div class="sl-suggest-card">
+        <span class="sl-sug-name">${_esc(String(name))}</span>
+        <span class="sl-sug-meta muted small">AI suggestion — macros resolved on log</span>
+        <button class="btn-ghost sl-sug-log" data-name="${_esc(String(name))}" data-grams="100">Log it</button>
+      </div>`).join('');
+    _bindSuggestLogBtns(container);
+  }
+
+  function _bindSuggestLogBtns(container) {
+    container.querySelectorAll('.sl-sug-log:not([data-bound])').forEach(btn => {
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', async () => {
+        const name = btn.dataset.name;
+        const grams = +btn.dataset.grams;
+        const row = await resolve({ name, qty: grams, unit: 'g' });
+        _renderPreview([row]);
+        container.innerHTML = '';
+      });
+    });
+  }
+
+  async function suggest() {
+    const container = document.getElementById('smartlog-suggestions');
+    if (container) container.innerHTML = '<p class="muted small sl-loading"><i class="fa-solid fa-spinner fa-spin"></i> Finding options…</p>';
+
+    const totals   = App.dayTotals ? App.dayTotals() : { kcal: 0, protein: 0 };
+    const max      = App.dailyMax ? App.dailyMax() : 2000;
+    const profile  = (App.state || {}).profile || {};
+    const remKcal  = max - Math.round(totals.kcal);
+    const remProt  = (profile.proteinMinG || 0) - totals.protein;
+    const hour     = new Date().getHours();
+
+    // Candidate pool: favorites, recents, curated DB slice
+    const favs    = App.state.favoriteFoods || [];
+    const recents = App.state.recentFoods || [];
+    const dbSlice = (window.FOODS || []).slice(0, 60);
+    const pool    = [...favs, ...recents, ...dbSlice];
+
+    // Deduplicate by name
+    const seen   = new Set();
+    const unique = pool.filter(f => {
+      if (!f || !f.name) return false;
+      const k = f.name.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+
+    const scored = unique
+      .map(food => ({
+        food,
+        grams: (food.serving && food.serving.g) || 100,
+        score: scoreSuggestion(food, remKcal, remProt, hour),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    _renderSuggestions(scored, container);
+
+    // AI variety (optional — key must be set)
+    const key = (App.state.settings || {}).openrouterKey || '';
+    if (key) {
+      try {
+        const model      = (App.state.settings || {}).aiTextModel || DEFAULT_MODEL;
+        const recentNames = recents.slice(0, 5).map(f => f.name).join(', ') || 'nothing yet';
+        const safeRecent = recentNames.replace(/["\n\r]/g, ' ').slice(0, 200);
+        const resp = await _fetchTimeout('https://openrouter.ai/api/v1/chat/completions', 12000, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: `I have ${Math.round(remKcal)} kcal and ${Math.round(Math.max(remProt, 0))}g protein left today. I recently ate: ${safeRecent}. Suggest 2-3 different food ideas that would fit. Return ONLY a JSON array of food names, e.g. ["Greek yogurt","Tuna salad"]. No prose.` }],
+            max_tokens: 100,
+          }),
+        });
+        const data  = await resp.json();
+        const raw   = data.choices?.[0]?.message?.content || '';
+        const ideas = JSON.parse(extractPlanJSON(raw));
+        if (Array.isArray(ideas) && ideas.length > 0) {
+          const safeIdeas = ideas.filter(n => typeof n === 'string' && n.trim()).slice(0, 3);
+          if (safeIdeas.length > 0) _appendAISuggestions(safeIdeas, container);
+        }
+      } catch (_) { /* AI variety failed — local suggestions are already shown */ }
+    }
+  }
+
   const pub = {
     DEFAULT_MODEL, PORTIONS, NUMBER_WORDS,
     parseLocal, unitToGrams, scoreSuggestion,
     parse, resolve, parseAndResolve,
-    run, _renderPreview,
+    run, suggest, _renderPreview,
   };
   window.SmartLog = pub;
   return pub;
