@@ -1325,6 +1325,11 @@ button { min-height: 0; }
 .source-usda     { background: rgba(0,220,180,0.15);  color: var(--aqua); border: 0.5px solid rgba(0,220,180,0.28); }
 .source-packaged { background: rgba(177,92,255,0.15); color: var(--violet); border: 0.5px solid rgba(177,92,255,0.28); }
 .source-custom   { background: rgba(255,106,24,0.15); color: var(--flame);  border: 0.5px solid rgba(255,106,24,0.28); }
+/* SmartLog source badges (db/online/ai/manual) */
+.source-db     { background: rgba(47,227,160,0.15); color: var(--good);   border: 0.5px solid rgba(47,227,160,0.3); }
+.source-online { background: rgba(0,220,180,0.15);  color: var(--aqua);   border: 0.5px solid rgba(0,220,180,0.28); }
+.source-ai     { background: rgba(177,92,255,0.15); color: var(--violet); border: 0.5px solid rgba(177,92,255,0.28); }
+.source-manual { background: rgba(255,59,107,0.15); color: var(--danger); border: 0.5px solid rgba(255,59,107,0.28); }
 
 /* ---- Nutritionix prompt banner ---- */
 .nutritionix-prompt {
@@ -1466,3 +1471,57 @@ input[type="range"] {
 }
 .ptr-indicator.visible { opacity: 1; }
 .ptr-indicator i { animation: ptr-spin 0.8s linear infinite; color: #fff; font-size: 14px; }
+
+/* ========= SmartLog Quick Log card ========= */
+.smartlog-card { margin-bottom: 16px; }
+.smartlog-head { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: var(--whitehot); }
+
+.smartlog-actions { display: flex; gap: 10px; margin-top: 10px; }
+.smartlog-actions .btn-primary,
+.smartlog-actions .btn-ghost { flex: 1; }
+
+/* Preview rows */
+#smartlog-preview { margin-top: 14px; }
+
+.sl-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.sl-row:last-of-type { border-bottom: none; }
+.sl-name { font-weight: 600; flex: 1 1 100px; }
+.sl-grams-label { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; }
+.sl-grams { width: 64px; padding: 4px 6px; text-align: center; border-radius: 8px; }
+.sl-kcal { font-weight: 600; font-size: 13px; }
+.sl-macros { font-size: 11px; }
+.sl-manual { border-left: 2px solid var(--danger); padding-left: 10px; }
+.sl-remove {
+  background: none; border: none; color: var(--danger);
+  cursor: pointer; padding: 4px 8px; font-size: 14px;
+}
+.sl-loading { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+
+.sl-footer-wrap { margin-top: 12px; }
+.sl-footer {
+  padding: 6px 0; font-size: 13px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.sl-btns { display: flex; gap: 10px; margin-top: 8px; }
+.sl-btns .btn-primary,
+.sl-btns .btn-ghost { flex: 1; }
+
+/* Suggestions */
+#smartlog-suggestions { margin-top: 14px; }
+.sl-suggest-head {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+}
+.sl-ai-head { margin-top: 14px; color: var(--violet); }
+
+.sl-suggest-card {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.sl-suggest-card:last-child { border-bottom: none; }
+.sl-sug-name { font-weight: 600; flex: 1 1 100px; }
+.sl-sug-meta { font-size: 11px; }
+.sl-sug-log { font-size: 12px; padding: 6px 14px; white-space: nowrap; }
