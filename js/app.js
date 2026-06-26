@@ -96,6 +96,7 @@ const App = {
     // new premium fields
     if (!s.measurements) s.measurements = [];
     if (!s.settings.usdaApiKey) s.settings.usdaApiKey = '';
+    if (!s.settings.aiTextModel) s.settings.aiTextModel = '';
     if (s.profile) {
       const p = s.profile;
       if (!p.goalType || p.goalType === 'lose') p.goalType = 'loseFat';
@@ -538,10 +539,11 @@ const App = {
           }
           ${
             isEdit
-              ? `<details class="advanced"><summary><i class="fa-solid fa-camera"></i> Photo logging (OpenRouter)</summary>
+              ? `<details class="advanced"><summary><i class="fa-solid fa-camera"></i> Photo logging + Smart AI (OpenRouter)</summary>
                   <label>OpenRouter API key<input name="openrouterKey" type="password" placeholder="sk-or-..." value="${(this.state.settings || {}).openrouterKey || ""}"></label>
-                  <label>Vision model<input name="visionModel" value="${(this.state.settings || {}).visionModel || "meta-llama/llama-4-maverick:free"}"></label>
-                  <p class="muted small">Stored on this device only. Free key: openrouter.ai → Keys. Leave blank to use the chat-handoff flow.</p>
+                  <label>Vision model (photo)<input name="visionModel" value="${(this.state.settings || {}).visionModel || "google/gemma-4-31b-it:free"}"></label>
+                  <label>Text model (Smart Log AI)<input name="aiTextModel" value="${(this.state.settings || {}).aiTextModel || ""}"><span class="muted small" style="display:block;margin-top:2px">Default: meta-llama/llama-4-maverick:free — leave blank for free default</span></label>
+                  <p class="muted small">Stored on this device only. Free key: openrouter.ai → Keys. Leave blank to use chat-handoff flow for photos.</p>
                  </details>
                  <details class="advanced"><summary><i class="fa-solid fa-burger"></i> Faster food search (optional, free)</summary>
                   <p class="muted small">Online search already works free (Open Food Facts + USDA). For higher rate limits and more branded/fast-food hits, grab a <strong>free</strong> USDA key — instant, no credit card — at api.data.gov/signup. Stored on this device only.</p>
@@ -590,7 +592,8 @@ const App = {
       if (fd.has("openrouterKey")) {
         this.state.settings = this.state.settings || {};
         this.state.settings.openrouterKey = (fd.get("openrouterKey") || "").trim();
-        this.state.settings.visionModel = (fd.get("visionModel") || "").trim() || "meta-llama/llama-4-maverick:free";
+        this.state.settings.visionModel = (fd.get("visionModel") || "").trim() || "google/gemma-4-31b-it:free";
+        this.state.settings.aiTextModel  = (fd.get("aiTextModel")  || "").trim();
       }
       const usdaKey = document.getElementById('pf-usda-key');
       if (usdaKey) {
