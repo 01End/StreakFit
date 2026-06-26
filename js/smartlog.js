@@ -157,19 +157,30 @@ const SmartLog = (() => {
     if (key) {
       try {
         const model = (App.state.settings || {}).aiTextModel || DEFAULT_MODEL;
+        const safeText = text.replace(/["\n\r]/g, ' ').slice(0, 300);
         const resp = await _fetchTimeout('https://openrouter.ai/api/v1/chat/completions', 12000, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model,
-            messages: [{ role: 'user', content: `Extract foods from this meal description. Return ONLY a JSON array of objects with keys "name" (string), "qty" (number), "unit" (string). No nutrition. No prose.\n\nMeal: "${text}"` }],
+            messages: [{ role: 'user', content: `Extract foods from this meal description. Return ONLY a JSON array of objects with keys "name" (string), "qty" (number), "unit" (string). No nutrition. No prose.\n\nMeal: "${safeText}"` }],
             max_tokens: 300,
           }),
         });
         const data = await resp.json();
         const raw = data.choices?.[0]?.message?.content || '';
         const items = JSON.parse(extractPlanJSON(raw));
-        if (Array.isArray(items) && items.length > 0) return items;
+        if (Array.isArray(items) && items.length > 0) {
+          const valid = items.filter(it =>
+            it && typeof it.name === 'string' && it.name.trim() &&
+            typeof it.qty === 'number'
+          ).map(it => ({
+            name: it.name.trim(),
+            qty: it.qty,
+            unit: typeof it.unit === 'string' ? it.unit : 'each',
+          }));
+          if (valid.length > 0) return valid;
+        }
       } catch (_) {
         if (window.App && App._toast) App._toast('Used basic parser.', 'info');
       }
@@ -178,9 +189,12 @@ const SmartLog = (() => {
   }
 
   function _nameSim(foodName, query) {
+    if (!foodName || !query) return false;
     const fn = foodName.toLowerCase(), q = query.toLowerCase();
+    if (!q) return false;
     if (fn.includes(q) || q.includes(fn)) return true;
-    return fn.includes(q.split(/\s+/)[0]);
+    const firstWord = q.split(/\s+/)[0];
+    return firstWord.length > 0 && fn.includes(firstWord);
   }
 
   // Stage 2: {name, qty, unit} → {food, grams, entry, _source}
@@ -191,7 +205,7 @@ const SmartLog = (() => {
     const dbResults = searchFoods(item.name);
     if (dbResults.length > 0) {
       const food = dbResults.find(f => _nameSim(f.name, item.name)) || dbResults[0];
-      const grams = gBase(food);
+      const grams = Math.max(gBase(food) || 1, 1);
       return { food, grams, entry: scaleMacros(food, grams), _source: 'db' };
     }
 
@@ -200,22 +214,23 @@ const SmartLog = (() => {
       const onlineResults = await searchFoodsOnline(item.name);
       if (onlineResults.length > 0) {
         const food = onlineResults.find(f => _nameSim(f.name, item.name)) || onlineResults[0];
-        const grams = gBase(food);
+        const grams = Math.max(gBase(food) || 1, 1);
         return { food, grams, entry: scaleMacros(food, grams), _source: 'online' };
       }
-    } catch (_) { /* network failure — fall through */ }
+    } catch (_) { /* defensive — searchFoodsOnline uses allSettled internally */ }
 
     // 3. AI macro estimate (key set only)
     const key = (App.state.settings || {}).openrouterKey || '';
     if (key) {
       try {
         const model = (App.state.settings || {}).aiTextModel || DEFAULT_MODEL;
+        const safeName = item.name.replace(/["\n\r]/g, ' ').slice(0, 80);
         const resp = await _fetchTimeout('https://openrouter.ai/api/v1/chat/completions', 12000, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model,
-            messages: [{ role: 'user', content: `Approximate macros per 100g for "${item.name}". Return ONLY JSON: {"kcal":number,"protein":number,"carbs":number,"fats":number,"sugar":number,"fiber":number,"sodium":number}` }],
+            messages: [{ role: 'user', content: `Approximate macros per 100g for "${safeName}". Return ONLY JSON: {"kcal":number,"protein":number,"carbs":number,"fats":number,"sugar":number,"fiber":number,"sodium":number}` }],
             max_tokens: 150,
           }),
         });
@@ -224,7 +239,7 @@ const SmartLog = (() => {
         const macros = JSON.parse(extractPlanJSON(raw));
         if (macros && typeof macros.kcal === 'number') {
           const food = { name: item.name, ...macros, serving: { label: '100 g', g: 100 } };
-          const grams = gBase(food);
+          const grams = Math.max(gBase(food) || 1, 1);
           return { food, grams, entry: scaleMacros(food, grams), _source: 'ai' };
         }
       } catch (_) { /* fall through to manual */ }
@@ -232,7 +247,7 @@ const SmartLog = (() => {
 
     // 4. Manual (zeros — UI flags this row red)
     const food = { name: item.name, kcal: 0, protein: 0, carbs: 0, fats: 0, sugar: 0, fiber: 0, sodium: 0, serving: { label: '100 g', g: 100 } };
-    const grams = gBase(food);
+    const grams = Math.max(gBase(food) || 1, 1);
     return { food, grams, entry: scaleMacros(food, grams), _source: 'manual' };
   }
 
