@@ -260,11 +260,15 @@ const SmartLog = (() => {
     return { db: 'DB', online: 'Online', ai: 'AI', manual: 'Manual' }[src] || src;
   }
 
+  function _esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   function _previewRowHTML(row, idx) {
     const e = row.entry;
     const isManual = row._source === 'manual';
     return `<div class="sl-row${isManual ? ' sl-manual' : ''}" data-idx="${idx}">
-      <span class="sl-name">${row.food.name}</span>
+      <span class="sl-name">${_esc(row.food.name)}</span>
       <label class="sl-grams-label">
         <input class="sl-grams" type="number" min="1" step="1" value="${Math.round(row.grams)}" data-idx="${idx}"> g
       </label>
@@ -284,13 +288,15 @@ const SmartLog = (() => {
     const consumed = App.dayTotals ? App.dayTotals().kcal : 0;
     const max = App.dailyMax ? App.dailyMax() : 2000;
     const remaining = Math.round(max - consumed - tot.kcal);
-    return `<div class="sl-footer">
-      <strong>${Math.round(tot.kcal)} kcal · ${tot.protein.toFixed(1)}P · ${tot.carbs.toFixed(1)}C · ${tot.fats.toFixed(1)}F</strong>
-      <span class="muted small">Leaves you ${remaining} kcal today</span>
-    </div>
-    <div class="sl-btns">
-      <button id="sl-log-all" class="btn-primary">Log all</button>
-      <button id="sl-cancel" class="btn-ghost">Cancel</button>
+    return `<div class="sl-footer-wrap">
+      <div class="sl-footer">
+        <strong>${Math.round(tot.kcal)} kcal · ${tot.protein.toFixed(1)}P · ${tot.carbs.toFixed(1)}C · ${tot.fats.toFixed(1)}F</strong>
+        <span class="muted small">Leaves you ${remaining} kcal today</span>
+      </div>
+      <div class="sl-btns">
+        <button id="sl-log-all" class="btn-primary">Log all</button>
+        <button id="sl-cancel" class="btn-ghost">Cancel</button>
+      </div>
     </div>`;
   }
 
@@ -318,8 +324,8 @@ const SmartLog = (() => {
         const idx = +inp.dataset.idx;
         const newG = Math.max(+inp.value || 1, 1);
         _rows[idx] = { ..._rows[idx], grams: newG, entry: scaleMacros(_rows[idx].food, newG) };
-        const oldFooter = container.querySelector('.sl-footer');
-        if (oldFooter) oldFooter.outerHTML = _footerHTML(_rows);
+        const oldWrap = container.querySelector('.sl-footer-wrap');
+        if (oldWrap) oldWrap.outerHTML = _footerHTML(_rows);
         _bindFooterBtns(container);
       });
     });
