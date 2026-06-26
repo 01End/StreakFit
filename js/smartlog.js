@@ -191,7 +191,6 @@ const SmartLog = (() => {
   function _nameSim(foodName, query) {
     if (!foodName || !query) return false;
     const fn = foodName.toLowerCase(), q = query.toLowerCase();
-    if (!q) return false;
     if (fn.includes(q) || q.includes(fn)) return true;
     const firstWord = q.split(/\s+/)[0];
     return firstWord.length > 0 && fn.includes(firstWord);
