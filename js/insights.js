@@ -1,0 +1,170 @@
+/* StreakFit — Insights & Reports: turns daily history into coaching metrics.
+ * Pure analytics core (_computeFrom / compute) is DOM-free and unit-tested via
+ * window._InsightsTests(). Rendering + optional AI are added in later tasks.
+ * Owns no state — reads App.state.{history,weights,profile,settings,gamify}.
+ */
+const Insights = (() => {
+  const DEFAULT_MODEL = 'meta-llama/llama-4-maverick:free';
+
+  /* ---------- pure date/math helpers ---------- */
+  function _stdev(arr) {
+    if (!arr.length) return 0;
+    const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const v = arr.reduce((a, b) => a + (b - m) * (b - m), 0) / arr.length;
+    return Math.sqrt(v);
+  }
+  function _daysAgoStr(today, n) {
+    const d = new Date(today + 'T00:00:00');
+    d.setDate(d.getDate() - n);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${da}`;
+  }
+  function _dayDiff(a, b) { // whole days from a -> b
+    const da = new Date(a + 'T00:00:00'), db = new Date(b + 'T00:00:00');
+    return Math.round((db - da) / 86400000);
+  }
+  function _weekdayName(ds) {
+    return new Date(ds + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short' });
+  }
+
+  /* ---------- pure analytics core ---------- */
+  // history: [{date,kcal,protein,sugar,target,metGoal,waterMl,steps,sleepHours,...}]
+  // weights: [{date,kg}]   profile: {calorieTarget,proteinMinG,goalWeightKg,weightKg,...}
+  function _computeFrom(history, weights, profile, windowDays, today) {
+    history = Array.isArray(history) ? history : [];
+    weights = Array.isArray(weights) ? weights : [];
+    profile = profile || {};
+    const target = profile.calorieTarget || 0;
+    const proteinMin = profile.proteinMinG || 0;
+
+    const cutoff = _daysAgoStr(today, windowDays - 1); // inclusive lower bound
+    const inWin = history.filter(h => h.date >= cutoff && h.date <= today);
+
+    // elapsed days the app could have logged, capped at windowDays (so new users aren't penalized)
+    let daysInWindow = windowDays;
+    if (history.length) {
+      const firstDate = history.reduce((m, h) => (h.date < m ? h.date : m), history[0].date);
+      const elapsed = _dayDiff(firstDate, today) + 1;
+      daysInWindow = Math.max(1, Math.min(windowDays, elapsed));
+    }
+
+    const logged = inWin.filter(h => (h.kcal || 0) > 0);
+    const daysLogged = logged.length;
+    const adherencePct = daysInWindow ? Math.round((daysLogged / daysInWindow) * 100) : 0;
+    const goalDays = inWin.filter(h => h.metGoal).length;
+
+    const kcals = logged.map(h => h.kcal || 0);
+    const avgKcal = kcals.length ? Math.round(kcals.reduce((a, b) => a + b, 0) / kcals.length) : 0;
+    const kcalVariance = kcals.length ? Math.round(_stdev(kcals)) : 0;
+
+    const proteinHits = proteinMin > 0 ? logged.filter(h => (h.protein || 0) >= proteinMin).length : 0;
+    const proteinHitRate = daysLogged ? Math.round((proteinHits / daysLogged) * 100) : 0;
+
+    const winWeights = weights.filter(w => w.date >= cutoff && w.date <= today)
+      .slice().sort((a, b) => a.date.localeCompare(b.date));
+    const weightChangeKg = winWeights.length >= 2
+      ? +(winWeights[winWeights.length - 1].kg - winWeights[0].kg).toFixed(1) : 0;
+
+    const curWeight = winWeights.length ? winWeights[winWeights.length - 1].kg : (profile.weightKg || 0);
+    let projection = { onTrack: null, note: 'Log 2+ weigh-ins to track progress' };
+    if (profile.goalWeightKg && winWeights.length >= 2 && curWeight) {
+      const wantLoss = profile.goalWeightKg < curWeight;
+      const onTrack = wantLoss ? weightChangeKg < 0 : weightChangeKg > 0;
+      projection = { onTrack, note: onTrack ? 'On track' : 'Off track' };
+    }
+
+    let bestDay = null, worstDay = null;
+    if (logged.length && target > 0) {
+      const scored = logged.map(h => ({
+        date: h.date, kcal: Math.round(h.kcal), dist: Math.abs((h.kcal || 0) - target),
+      })).sort((a, b) => a.dist - b.dist);
+      bestDay = { date: scored[0].date, kcal: scored[0].kcal };
+      worstDay = { date: scored[scored.length - 1].date, kcal: scored[scored.length - 1].kcal };
+    }
+
+    let wdTot = 0, wdLog = 0, weTot = 0, weLog = 0;
+    for (let i = 0; i < daysInWindow; i++) {
+      const ds = _daysAgoStr(today, i);
+      const dow = new Date(ds + 'T00:00:00').getDay(); // 0 Sun .. 6 Sat
+      const isWeekend = dow === 0 || dow === 6;
+      const did = inWin.some(h => h.date === ds && (h.kcal || 0) > 0);
+      if (isWeekend) { weTot++; if (did) weLog++; } else { wdTot++; if (did) wdLog++; }
+    }
+    const weekdayRate = wdTot ? Math.round((wdLog / wdTot) * 100) : 0;
+    const weekendRate = weTot ? Math.round((weLog / weTot) * 100) : 0;
+    const mostConsistent = weekdayRate === weekendRate ? 'even'
+      : (weekdayRate > weekendRate ? 'weekdays' : 'weekends');
+
+    const steps = logged.map(h => h.steps || 0).filter(v => v > 0);
+    const avgSteps = steps.length ? Math.round(steps.reduce((a, b) => a + b, 0) / steps.length) : null;
+    const sleeps = inWin.map(h => h.sleepHours).filter(v => v);
+    const avgSleep = sleeps.length ? +(sleeps.reduce((a, b) => a + b, 0) / sleeps.length).toFixed(1) : null;
+
+    return {
+      windowDays, daysInWindow, daysLogged, adherencePct, goalDays,
+      avgKcal, targetKcal: target, kcalVariance,
+      proteinHits, proteinHitRate,
+      weightChangeKg, projection, bestDay, worstDay,
+      weekdayRate, weekendRate, mostConsistent, avgSteps, avgSleep,
+    };
+  }
+
+  // App-bound wrapper (used by the UI; tests call _computeFrom directly with fixtures)
+  function compute(windowDays) {
+    const s = (window.App && App.state) || {};
+    return _computeFrom(s.history, s.weights, s.profile, windowDays,
+      (window.App && App.todayStr()) || _daysAgoStr('1970-01-01', 0));
+  }
+
+  /* ---------- test harness (browser console) ---------- */
+  function _assertEq(label, got, want) {
+    if (got !== want) throw new Error(`FAIL ${label}: got ${got}, want ${want}`);
+    console.log(`PASS ${label}`);
+  }
+  function _InsightsTests() {
+    const today = '2026-06-27'; // a Saturday
+    const profile = { calorieTarget: 2000, proteinMinG: 150, goalWeightKg: 80, weightKg: 85 };
+    // 7-day window ending today: log 5 of the last 7 days
+    const hist = [
+      { date: '2026-06-21', kcal: 0,    protein: 0,   metGoal: false }, // Sun, not logged
+      { date: '2026-06-22', kcal: 2100, protein: 160, metGoal: true,  steps: 9000, sleepHours: 7 }, // Mon
+      { date: '2026-06-23', kcal: 1900, protein: 140, metGoal: true,  steps: 7000, sleepHours: 8 }, // Tue
+      { date: '2026-06-24', kcal: 2000, protein: 155, metGoal: true,  steps: 5000 }, // Wed (closest to target)
+      { date: '2026-06-25', kcal: 2600, protein: 120, metGoal: false }, // Thu (furthest)
+      { date: '2026-06-26', kcal: 1950, protein: 151, metGoal: true }, // Fri
+      // Sat (today) not in history yet
+    ];
+    const weights = [{ date: '2026-06-22', kg: 85 }, { date: '2026-06-26', kg: 84.2 }];
+    const m = _computeFrom(hist, weights, profile, 7, today);
+
+    _assertEq('daysLogged', m.daysLogged, 5);
+    _assertEq('daysInWindow', m.daysInWindow, 7);
+    _assertEq('adherencePct', m.adherencePct, 71); // round(5/7*100)
+    _assertEq('goalDays', m.goalDays, 4);
+    _assertEq('proteinHits', m.proteinHits, 3); // 160,155,151 >= 150; 140,120 < 150 → 3
+    _assertEq('bestDayDate', m.bestDay.date, '2026-06-24');
+    _assertEq('worstDayDate', m.worstDay.date, '2026-06-25');
+    _assertEq('weightChangeKg', m.weightChangeKg, -0.8);
+    _assertEq('projOnTrack', m.projection.onTrack, true);
+
+    // zero-data must never produce NaN
+    const z = _computeFrom([], [], {}, 30, today);
+    _assertEq('zero adherence', z.adherencePct, 0);
+    _assertEq('zero avgKcal', z.avgKcal, 0);
+    _assertEq('zero variance', z.kcalVariance, 0);
+    _assertEq('zero bestDay', z.bestDay, null);
+
+    console.log('✅ All Insights tests passed.');
+  }
+  if (typeof window !== 'undefined') window._InsightsTests = _InsightsTests;
+
+  const pub = {
+    DEFAULT_MODEL,
+    _computeFrom, compute,
+    _daysAgoStr, _weekdayName, // exposed for later tasks/tests
+  };
+  if (typeof window !== 'undefined') window.Insights = pub;
+  return pub;
+})();
