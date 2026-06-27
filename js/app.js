@@ -409,6 +409,8 @@ const App = {
         date: a.date,
         kcal: Math.round(totals.kcal),
         protein: Math.round(totals.protein),
+        carbs: Math.round(totals.carbs),
+        fats: Math.round(totals.fats),
         sugar: Math.round(totals.sugar),
         target: target.calorieTarget,
         metGoal: met,
@@ -908,7 +910,7 @@ const App = {
         ${this._islandPillHTML(consumed, max, this.state.streak, t)}
         <div class="head-btns">
           <button id="open-reminders" class="btn-ghost small" aria-label="Reminders"><i class="fa-solid fa-bell"></i></button>
-          <button id="open-progress" class="btn-ghost small" aria-label="Progress"><i class="fa-solid fa-chart-line"></i></button>
+          <button id="open-progress" class="btn-ghost small" aria-label="Insights"><i class="fa-solid fa-chart-line"></i></button>
         </div>
       </header>
       <div class="dash-greeting">
@@ -1118,6 +1120,11 @@ const App = {
           ${this._heatmapCalendar()}
         </div>
 
+        <div class="card" style="padding:16px">
+          <div style="font-size:13px;font-weight:800;margin-bottom:10px"><i class="fa-solid fa-chart-line"></i> Insights & Reports</div>
+          <div id="insights-card">${window.Insights ? Insights.renderPanel(30) : '<div class="muted small">Insights unavailable.</div>'}</div>
+        </div>
+
         <div class="prog-section">
           <h4>Consistency</h4>
           <div class="prog-grid">
@@ -1132,6 +1139,7 @@ const App = {
     document.body.appendChild(modal);
     requestAnimationFrame(() => modal.classList.add("open"));
     document.getElementById('calorie-chart-section').innerHTML = App._calorieBarChart(7);
+    if (window.Insights) Insights._bind(modal);
     modal.addEventListener("click", (e) => {
       if (e.target === modal || e.target.closest(".ex-close")) modal.remove();
     });
@@ -1204,6 +1212,15 @@ const App = {
       const el = document.getElementById('calorie-chart-section');
       if (el) el.innerHTML = this._calorieBarChart(days);
     }
+  },
+
+  _renderInsights(days) {
+    if (!window.Insights) return;
+    const grid = document.getElementById('insights-grid');
+    if (grid) grid.innerHTML = Insights._gridHTML(Insights.compute(days));
+    document.querySelectorAll('.insights-toggle button').forEach((b) => {
+      b.classList.toggle('active', b.textContent.trim() === days + 'd');
+    });
   },
 
   _emptyState(icon, title, body, cta = null, ctaAction = null) {
