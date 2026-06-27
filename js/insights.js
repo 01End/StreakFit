@@ -182,6 +182,88 @@ const Insights = (() => {
     }
   }
 
+  /* ---------- rendering ---------- */
+  function _esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function _pill(big, label) {
+    return `<div class="prog-pill"><b>${big}</b><span>${label}</span></div>`;
+  }
+  function _gridHTML(m) {
+    if (!m.daysLogged) {
+      return `<div class="muted small" style="padding:8px 0">Log a few days to see your insights here.</div>`;
+    }
+    const projStr = m.projection.onTrack === null ? '—'
+      : (m.projection.onTrack ? '<span class="v-good">on track</span>' : '<span class="v-bad">off track</span>');
+    const wd = m.weightChangeKg;
+    const wStr = wd === 0 ? '—' : (wd < 0 ? `▼ ${Math.abs(wd)}` : `▲ ${wd}`);
+    const bestStr = m.bestDay ? _weekdayName(m.bestDay.date) : '—';
+    const worstStr = m.worstDay ? _weekdayName(m.worstDay.date) : '—';
+    return `<div class="prog-grid">
+      ${_pill(`${m.adherencePct}%`, `adherence (${m.daysLogged}/${m.daysInWindow})`)}
+      ${_pill(`${m.goalDays}`, 'goal days')}
+      ${_pill(`${m.avgKcal}`, `avg kcal ±${m.kcalVariance}`)}
+      ${_pill(`${m.proteinHitRate}%`, 'protein hit')}
+      ${_pill(`${wStr} kg`, projStr)}
+      ${_pill(`${bestStr}/${worstStr}`, 'best / worst')}
+      ${_pill(m.mostConsistent, `wk ${m.weekdayRate}% · wkend ${m.weekendRate}%`)}
+      ${_pill(m.avgSteps != null ? m.avgSteps : '—', 'avg steps')}
+    </div>`;
+  }
+  function _reportHTML(rep) {
+    const hasKey = !!((window.App && App.state.settings || {}).openrouterKey);
+    const aiBtn = hasKey
+      ? `<button id="insights-ai-btn" class="btn-ghost small"><i class="fa-solid fa-wand-magic-sparkles"></i> Deeper analysis</button>`
+      : '';
+    return `<div class="insights-report">
+      <div class="ins-rep-head">${_esc(rep.headline)}</div>
+      <ul class="ins-rep-list">
+        ${rep.lines.map(l => `<li>${_esc(l)}</li>`).join('')}
+      </ul>
+      <div class="ins-rep-actions">
+        <button id="insights-share-btn" class="btn-ghost small"><i class="fa-solid fa-share-nodes"></i> Share recap</button>
+        ${aiBtn}
+      </div>
+      <div id="insights-ai-out" class="ins-ai-out"></div>
+    </div>`;
+  }
+  function renderPanel(windowDays) {
+    const m = compute(windowDays);
+    const rep = weeklyReport();
+    const tog = (d, lbl) =>
+      `<button class="${windowDays === d ? 'active' : ''}" onclick="App._renderInsights(${d})">${lbl}</button>`;
+    return `<div class="insights-block">
+      <div class="chart-toggle insights-toggle">
+        ${tog(7, '7d')}${tog(30, '30d')}${tog(90, '90d')}
+      </div>
+      <div id="insights-grid">${_gridHTML(m)}</div>
+      ${_reportHTML(rep)}
+    </div>`;
+  }
+  function _bind(root) {
+    const shareBtn = root.querySelector('#insights-share-btn');
+    if (shareBtn) shareBtn.addEventListener('click', () => {
+      const rep = weeklyReport();
+      const text = `StreakFit — this week\n${rep.headline}\n• ` + rep.lines.join('\n• ');
+      if (navigator.clipboard) navigator.clipboard.writeText(text);
+      shareBtn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+      setTimeout(() => { shareBtn.innerHTML = '<i class="fa-solid fa-share-nodes"></i> Share recap'; }, 1400);
+    });
+    const aiBtn = root.querySelector('#insights-ai-btn');
+    if (aiBtn) aiBtn.addEventListener('click', async () => {
+      const out = root.querySelector('#insights-ai-out');
+      aiBtn.disabled = true;
+      aiBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing…';
+      const r = await aiReport(compute(7));
+      aiBtn.disabled = false;
+      aiBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Deeper analysis';
+      if (out) out.innerHTML = r.ok
+        ? `<div class="ins-ai">${_esc(r.text)}</div>`
+        : `<div class="muted small">Couldn't reach AI — your recap above is still complete.</div>`;
+    });
+  }
+
   /* ---------- test harness (browser console) ---------- */
   function _assertEq(label, got, want) {
     if (got !== want) throw new Error(`FAIL ${label}: got ${got}, want ${want}`);
@@ -235,6 +317,7 @@ const Insights = (() => {
     _computeFrom, compute,
     _weeklyReportFrom, weeklyReport,
     aiReport,
+    renderPanel, _gridHTML, _bind,
     _daysAgoStr, _weekdayName,
   };
   if (typeof window !== 'undefined') window.Insights = pub;
