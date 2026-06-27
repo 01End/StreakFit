@@ -145,6 +145,43 @@ const Insights = (() => {
       (window.App && App.todayStr()) || _daysAgoStr('1970-01-01', 0));
   }
 
+  /* ---------- optional AI deeper analysis (key-gated, graceful) ---------- */
+  async function aiReport(metrics) {
+    const key = (App.state.settings || {}).openrouterKey || '';
+    if (!key) return { ok: false, reason: 'no-key' };
+    try {
+      const model = (App.state.settings || {}).aiTextModel || DEFAULT_MODEL;
+      const facts = [
+        `window ${metrics.windowDays}d`,
+        `logged ${metrics.daysLogged}/${metrics.daysInWindow}`,
+        `adherence ${metrics.adherencePct}%`,
+        `avg ${metrics.avgKcal} kcal (target ${metrics.targetKcal})`,
+        `variance ${metrics.kcalVariance}`,
+        `protein hit ${metrics.proteinHitRate}%`,
+        `weight change ${metrics.weightChangeKg} kg`,
+        `most consistent ${metrics.mostConsistent}`,
+      ].join('; ');
+      const resp = await _fetchTimeout('https://openrouter.ai/api/v1/chat/completions', 12000, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content:
+            `You are a supportive fitness coach. Based ONLY on these weekly stats, write 2-3 short ` +
+            `sentences of encouragement and ONE concrete, actionable tip. No markdown, no lists, ` +
+            `under 60 words.\n\nStats: ${facts}` }],
+          max_tokens: 160,
+        }),
+      });
+      const data = await resp.json();
+      const text = (data.choices?.[0]?.message?.content || '').trim();
+      if (!text) return { ok: false, reason: 'empty' };
+      return { ok: true, text };
+    } catch (_) {
+      return { ok: false, reason: 'error' };
+    }
+  }
+
   /* ---------- test harness (browser console) ---------- */
   function _assertEq(label, got, want) {
     if (got !== want) throw new Error(`FAIL ${label}: got ${got}, want ${want}`);
@@ -197,6 +234,7 @@ const Insights = (() => {
     DEFAULT_MODEL,
     _computeFrom, compute,
     _weeklyReportFrom, weeklyReport,
+    aiReport,
     _daysAgoStr, _weekdayName,
   };
   if (typeof window !== 'undefined') window.Insights = pub;
