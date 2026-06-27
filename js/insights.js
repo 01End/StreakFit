@@ -173,7 +173,7 @@ const Insights = (() => {
           max_tokens: 160,
         }),
       });
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
       const text = (data.choices?.[0]?.message?.content || '').trim();
       if (!text) return { ok: false, reason: 'empty' };
       return { ok: true, text };
