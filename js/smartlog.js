@@ -394,12 +394,13 @@ const SmartLog = (() => {
 
   function _appendAISuggestions(names, container) {
     if (!container || !names || names.length === 0) return;
-    container.innerHTML += `<div class="sl-suggest-head sl-ai-head">✨ AI Ideas</div>` +
+    const html = `<div class="sl-suggest-head sl-ai-head">✨ AI Ideas</div>` +
       names.map(name => `<div class="sl-suggest-card">
         <span class="sl-sug-name">${_esc(String(name))}</span>
         <span class="sl-sug-meta muted small">AI suggestion — macros resolved on log</span>
         <button class="btn-ghost sl-sug-log" data-name="${_esc(String(name))}" data-grams="100">Log it</button>
       </div>`).join('');
+    container.insertAdjacentHTML('beforeend', html);
     _bindSuggestLogBtns(container);
   }
 
@@ -430,7 +431,7 @@ const SmartLog = (() => {
     // Candidate pool: favorites, recents, curated DB slice
     const favs    = App.state.favoriteFoods || [];
     const recents = App.state.recentFoods || [];
-    const dbSlice = (window.FOODS || []).slice(0, 60);
+    const dbSlice = (typeof FOODS !== 'undefined' ? FOODS : []).slice(0, 60);
     const pool    = [...favs, ...recents, ...dbSlice];
 
     // Deduplicate by name
