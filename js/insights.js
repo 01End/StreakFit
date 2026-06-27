@@ -118,6 +118,33 @@ const Insights = (() => {
       (window.App && App.todayStr()) || _daysAgoStr('1970-01-01', 0));
   }
 
+  /* ---------- templated weekly recap (last 7 days) ---------- */
+  function _weeklyReportFrom(history, weights, profile, gamifyStats, today) {
+    const m = _computeFrom(history, weights, profile, 7, today);
+    const workouts = (gamifyStats && gamifyStats.workouts) || 0;
+    const wd = m.weightChangeKg;
+    const wStr = wd === 0 ? 'no change' : (wd < 0 ? `▼ ${Math.abs(wd)} kg` : `▲ ${wd} kg`);
+    const bestStr = m.bestDay ? _weekdayName(m.bestDay.date) : '—';
+    const lines = [
+      `Logged ${m.daysLogged}/${m.daysInWindow} days`,
+      `Avg ${m.avgKcal} kcal` + (m.targetKcal ? ` (target ${m.targetKcal})` : ''),
+      `Weight ${wStr}`,
+      `Workouts ${workouts}`,
+      `Protein goal hit ${m.proteinHits}/${m.daysLogged} days`,
+      `Best day ${bestStr}`,
+    ];
+    const headline = m.daysLogged >= 6 ? 'Strong, consistent week.'
+      : m.daysLogged >= 3 ? 'Solid week — keep it going.'
+      : 'A few logs in — build the habit this week.';
+    return { metrics: m, workouts, lines, headline };
+  }
+  function weeklyReport() {
+    const s = (window.App && App.state) || {};
+    const gstats = (s.gamify && s.gamify.stats) || { workouts: 0 };
+    return _weeklyReportFrom(s.history, s.weights, s.profile, gstats,
+      (window.App && App.todayStr()) || _daysAgoStr('1970-01-01', 0));
+  }
+
   /* ---------- test harness (browser console) ---------- */
   function _assertEq(label, got, want) {
     if (got !== want) throw new Error(`FAIL ${label}: got ${got}, want ${want}`);
@@ -156,6 +183,12 @@ const Insights = (() => {
     _assertEq('zero variance', z.kcalVariance, 0);
     _assertEq('zero bestDay', z.bestDay, null);
 
+    // weekly report (pure)
+    const rep = _weeklyReportFrom(hist, weights, profile, { workouts: 3 }, today);
+    _assertEq('report workouts', rep.workouts, 3);
+    _assertEq('report has lines', rep.lines.length > 0, true);
+    _assertEq('report protein line', rep.lines.some(l => l.indexOf('Protein') === 0), true);
+
     console.log('✅ All Insights tests passed.');
   }
   if (typeof window !== 'undefined') window._InsightsTests = _InsightsTests;
@@ -163,7 +196,8 @@ const Insights = (() => {
   const pub = {
     DEFAULT_MODEL,
     _computeFrom, compute,
-    _daysAgoStr, _weekdayName, // exposed for later tasks/tests
+    _weeklyReportFrom, weeklyReport,
+    _daysAgoStr, _weekdayName,
   };
   if (typeof window !== 'undefined') window.Insights = pub;
   return pub;
